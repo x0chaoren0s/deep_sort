@@ -1,0 +1,23 @@
+{
+    // 使用 IntelliSense 了解相关属性。 
+    // 悬停以查看现有属性的描述。
+    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: deep_sort_app.py",
+            "type": "python",
+            "request": "launch",
+            "program": "/home/xxy/deep_sort/deep_sort_app.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--sequence_dir", "MOT16/test/MOT16-06",
+                "--detection_file", "resources/detections/MOT16_POI_test/MOT16-06.npy",
+                "--min_confidence", "0.3",
+                "--nn_budget", "100",
+                "--display", "False"
+            ]
+        }
+    ]
+}
