@@ -65,7 +65,7 @@ class Track:
 
     def __init__(self, mean, covariance, track_id, n_init, max_age,
                  feature=None):
-        self.mean = mean
+        self.mean = mean                    # (x, y, a, h)
         self.covariance = covariance
         self.track_id = track_id
         self.hits = 1
@@ -90,9 +90,9 @@ class Track:
             The bounding box.
 
         """
-        ret = self.mean[:4].copy()
-        ret[2] *= ret[3]
-        ret[:2] -= ret[2:] / 2
+        ret = self.mean[:4].copy()  # (x,         y, a, h)
+        ret[2] *= ret[3]            # (x,         y, w, h)
+        ret[:2] -= ret[2:] / 2      # (x-w/2, y-h/2, w, h) == (x1,y1, w, h)
         return ret
 
     def to_tlbr(self):
@@ -105,8 +105,8 @@ class Track:
             The bounding box.
 
         """
-        ret = self.to_tlwh()
-        ret[2:] = ret[:2] + ret[2:]
+        ret = self.to_tlwh()        # (x-w/2, y-h/2,     w,     h) == (x1,y1, w, h)
+        ret[2:] = ret[:2] + ret[2:] # (x-w/2, y-h/2, x+w/2, y+h/2) == (x1,y1,x2,y2)
         return ret
 
     def predict(self, kf):

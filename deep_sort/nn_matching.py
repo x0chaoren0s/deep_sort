@@ -93,7 +93,7 @@ def _nn_cosine_distance(x, y):
 
     """
     distances = _cosine_distance(x, y)
-    return distances.min(axis=0)
+    return distances.min(axis=0)    # 返回所有x中到各y的最小距离
 
 
 class NearestNeighborDistanceMetric(object):

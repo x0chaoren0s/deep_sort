@@ -14,7 +14,7 @@ def non_max_suppression(boxes, max_bbox_overlap, scores=None):
     Examples
     --------
 
-        >>> boxes = [d.roi for d in detections]
+        >>> boxes = [d.roi for d in detections] # d.roi: tlwh
         >>> scores = [d.confidence for d in detections]
         >>> indices = non_max_suppression(boxes, max_bbox_overlap, scores)
         >>> detections = [detections[i] for i in indices]

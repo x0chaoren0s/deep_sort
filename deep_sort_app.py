@@ -45,7 +45,7 @@ def gather_sequence_info(sequence_dir, detection_file):
         int(os.path.splitext(f)[0]): os.path.join(image_dir, f)
         for f in os.listdir(image_dir)}
     groundtruth_file = os.path.join(sequence_dir, "gt/gt.txt")
-
+    # detections.shape：(10853, 138) resources/detections/MOT16_POI_test/MOT16-06.npy
     detections = None
     if detection_file is not None:
         detections = np.load(detection_file)
@@ -54,7 +54,7 @@ def gather_sequence_info(sequence_dir, detection_file):
         groundtruth = np.loadtxt(groundtruth_file, delimiter=',')
 
     if len(image_filenames) > 0:
-        image = cv2.imread(next(iter(image_filenames.values())),
+        image = cv2.imread(next(iter(image_filenames.values())), # 目的是获取图片shape，所以只用第一张图就行了
                            cv2.IMREAD_GRAYSCALE)
         image_size = image.shape
     else:
@@ -77,7 +77,7 @@ def gather_sequence_info(sequence_dir, detection_file):
         update_ms = 1000 / int(info_dict["frameRate"])
     else:
         update_ms = None
-
+    # detections.shape：(10853, 138) resources/detections/MOT16_POI_test/MOT16-06.npy
     feature_dim = detections.shape[1] - 10 if detections is not None else 0
     seq_info = {
         "sequence_name": os.path.basename(sequence_dir),
@@ -98,7 +98,7 @@ def create_detections(detection_mat, frame_idx, min_height=0):
 
     Parameters
     ----------
-    detection_mat : ndarray
+    detection_mat : ndarray    # detection_mat.shape：(10853, 138)
         Matrix of detections. The first 10 columns of the detection matrix are
         in the standard MOTChallenge detection format. In the remaining columns
         store the feature vector associated with each detection.
@@ -114,16 +114,16 @@ def create_detections(detection_mat, frame_idx, min_height=0):
         Returns detection responses at given frame index.
 
     """
-    frame_indices = detection_mat[:, 0].astype(np.int)
+    frame_indices = detection_mat[:, 0].astype(np.int)  # detection_mat.shape：(10853, 138)
     mask = frame_indices == frame_idx
 
     detection_list = []
-    for row in detection_mat[mask]:
-        bbox, confidence, feature = row[2:6], row[6], row[10:]
+    for row in detection_mat[mask]: # row.shape: (138)
+        bbox, confidence, feature = row[2:6], row[6], row[10:]  # box: tlwh
         if bbox[3] < min_height:
             continue
-        detection_list.append(Detection(bbox, confidence, feature))
-    return detection_list
+        detection_list.append(Detection(bbox, confidence, feature)) # feature.shape:(128)
+    return detection_list # [ (tlwh,confidence,feature),(),.. ]
 
 
 def run(sequence_dir, detection_file, output_file, min_confidence,
@@ -167,9 +167,11 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
         print("Processing frame %05d" % frame_idx)
 
         # Load image and generate detections.
-        detections = create_detections(
+        detections = create_detections( # seq_info["detections"].shape：(10853, 138)
             seq_info["detections"], frame_idx, min_detection_height)
+        # detections: [ (tlwh,confidence,feature),(),.. ]
         detections = [d for d in detections if d.confidence >= min_confidence]
+        # detections: [ (tlwh,confidence,feature),(),.. ]
 
         # Run non-maxima suppression.
         boxes = np.array([d.tlwh for d in detections])
