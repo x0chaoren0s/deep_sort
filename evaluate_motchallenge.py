@@ -1,7 +1,7 @@
 # vim: expandtab:ts=4:sw=4
 import argparse
 import os
-import deep_sort_app
+import deep_sort_app as deep_sort_app
 
 
 def parse_args():

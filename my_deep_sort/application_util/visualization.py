@@ -2,7 +2,7 @@
 import numpy as np
 import colorsys
 from .image_viewer import ImageViewer
-import os
+
 
 def create_unique_color_float(tag, hue_step=0.41):
     """Create a unique RGB color code for a given track id (tag).
@@ -132,38 +132,3 @@ class Visualization(object):
             # self.viewer.gaussian(track.mean[:2], track.covariance[:2, :2],
             #                      label="%d" % track.track_id)
 #
-
-class Visualization_only_save_video(Visualization):
-    ''' 未完成，输出的视频无法播放 '''
-    def __init__(self, update_ms, output_video_path, first_idx, last_idx, image_shape):
-    # def __init__(self, seq_info, update_ms):
-        image_shape = image_shape[::-1]
-        aspect_ratio = float(image_shape[1]) / image_shape[0]
-        image_shape = 1024, int(aspect_ratio * 1024)
-        self.viewer = ImageViewer(
-            update_ms, image_shape, '')
-        self.viewer.thickness = 2
-        self.frame_idx = first_idx
-        self.last_idx = last_idx
-
-        self.viewer.enable_videowriter(output_video_path)
-
-    def run(self, frame_callback):
-        self.viewer.run(lambda: self._update_fun(frame_callback), show=False)
-
-class Visualization_only_save_image(Visualization):
-    def __init__(self, output_image_folder, first_idx, last_idx, image_shape, image_names):
-    # def __init__(self, seq_info, update_ms):
-        image_shape = image_shape[::-1]
-        aspect_ratio = float(image_shape[1]) / image_shape[0]
-        image_shape = 1024, int(aspect_ratio * 1024)
-        self.frame_idx = first_idx
-        self.last_idx = last_idx
-        self.image_names = image_names
-        self.viewer = ImageViewer(
-            0, image_shape, '', output_image_folder, first_idx, self.image_names)
-        self.viewer.thickness = 2
-
-    def run(self, frame_callback):
-        self.viewer.run(lambda: self._update_fun(frame_callback), show=False)
-

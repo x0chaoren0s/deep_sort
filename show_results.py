@@ -4,7 +4,7 @@ import argparse
 import cv2
 import numpy as np
 
-import deep_sort_app
+import deep_sort_app as deep_sort_app
 from deep_sort.iou_matching import iou
 from application_util import visualization
 

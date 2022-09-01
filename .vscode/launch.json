@@ -5,6 +5,16 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python: current file",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+            ]
+        },
+        {
             "name": "Python: deep_sort_app.py",
             "type": "python",
             "request": "launch",
@@ -18,6 +28,22 @@
                 "--nn_budget", "100",
                 "--display", "False",
                 "--output_file", "output/MOT16-06.txt"
+            ]
+        },
+        {
+            "name": "Python: deep_sort_app_my.py",
+            "type": "python",
+            "request": "launch",
+            "program": "/home/xxy/deep_sort/deep_sort_app_my.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--sequence_dir", "datasets/lingshui/30fps300s",
+                "--detection_file", "",
+                "--min_confidence", "0.3",
+                "--nn_budget", "100",
+                "--display", "False",
+                "--output_file", "output/30fps300s.txt"
             ]
         }
     ]
