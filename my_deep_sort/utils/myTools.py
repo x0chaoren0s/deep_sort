@@ -3,7 +3,7 @@ import cv2 as cv
 import pandas as pd
 from itertools import product
 import matplotlib.pyplot as plt
-import time,math,cv2
+import time,math,cv2,os
 
 def show(img,fixedRange=False,figsize=(20,20)):
     plt.figure(figsize=figsize)
@@ -103,3 +103,6 @@ def combineSubImg(wholeImg2DShape,numSubimgByRow,numSubimgByCol,subImgListByRow)
 # print(img,splitImg(img),combineSubImg((3,5),3,2,splitImg(img)))
 # show(img)
 # show(combineSubImg((3,5),3,2,splitImg(img)))
+
+def linux_path(path: str) -> str:
+    return path.replace(r'\/'.replace(os.sep, ''), os.sep)
