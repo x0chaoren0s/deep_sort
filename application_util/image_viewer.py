@@ -190,6 +190,23 @@ class ImageViewer(object):
                 self.image, label, center, cv2.FONT_HERSHEY_PLAIN,
                 2, self.text_color, 2)
 
+    def line(self, x1, y1, x2, y2, label=None):
+        """Draw a line segment connecting two points.
+
+        Parameters
+        ----------
+        x1, y1, x2, y2 : float | int
+        label : Optional[str]
+            A text label that is placed at the center of the circle.
+
+        """
+        cv2.line(self.image, (x1, y1), (x2, y2), self._color, self.thickness)
+        if label is not None:
+            # cv2.putText(
+            #     self.image, label, center, cv2.FONT_HERSHEY_PLAIN,
+            #     2, self.text_color, 2)
+            pass
+
     def gaussian(self, mean, covariance, label=None):
         """Draw 95% confidence ellipse of a 2-D Gaussian distribution.
 
@@ -339,6 +356,12 @@ class ImageViewer(object):
     #     cv2.waitKey(1)
     #     cv2.imshow(self._caption, self.image)
 
+    def save_image(self):
+        ''' 需要保证 self.image_output_folder 存在 '''
+        image_name = os.path.basename(self.image_names[self.image_idx])
+        cv2.imwrite(os.path.join(self.image_output_folder, image_name), self.image)
+        
+    
     def run(self, update_fun=None, show=True):
         """Start the image viewer.
 
@@ -382,8 +405,9 @@ class ImageViewer(object):
                     is_paused = True
             else:
                 if self.image_output_folder:
-                    image_name = os.path.basename(self.image_names[self.image_idx])
-                    cv2.imwrite(os.path.join(self.image_output_folder, image_name), self.image)
+                    # image_name = os.path.basename(self.image_names[self.image_idx])
+                    # cv2.imwrite(os.path.join(self.image_output_folder, image_name), self.image)
+                    self.save_image()
             self.image_idx += 1
 
 
