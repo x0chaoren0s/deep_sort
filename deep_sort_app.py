@@ -201,12 +201,11 @@ def run(sequence_dir, detection_file, output_file, min_confidence,
                 frame_idx, track.track_id, bbox[0], bbox[1], bbox[2], bbox[3]])
 
     # Run tracker.
-    # if display:
-    #     visualizer = visualization.Visualization(seq_info, update_ms=5)
-    # else:
-    #     visualizer = visualization.NoVisualization(seq_info)
-    visualizer = visualization.Visualization_only_save_image(
-        'output/MOT16-06',seq_info["min_frame_idx"],10,seq_info["image_size"][::-1],seq_info["image_filenames"])
+    if display:
+        visualizer = visualization.Visualization(seq_info, update_ms=5)
+    else:
+        visualizer = visualization.NoVisualization(seq_info)
+    # visualizer = visualization.Visualization(seq_info, update_ms=5)
     visualizer.run(frame_callback)
 
     # Store results.
