@@ -2,6 +2,7 @@
 
 from mmdet.apis import init_detector, inference_detector
 import mmcv
+import numpy as np
 
 class Detector:
     def __init__(self, config_file, checkpoint_file, device = 'cuda:1') -> None:
@@ -12,10 +13,10 @@ class Detector:
     
     def detect(self, img):
         ''' 
-        暂时只支持 img 为单张图片的路径。\n
+        暂时只支持 img 为单张图片的路径，或np.ndarray。\n
         返回一个tuple：( [np.array(100个检测框：[x1,y1,w,h,confidence],[],..)],  [[100个mask：np.array(..),np.array()，..]]  )
         '''
-        if isinstance(img, str):
+        if isinstance(img, str) or isinstance(img, np.ndarray):
             return inference_detector(self.model, img)
         else:
             raise ValueError('not implemented.')
