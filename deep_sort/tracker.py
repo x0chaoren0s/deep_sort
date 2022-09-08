@@ -66,7 +66,11 @@ class Tracker:
         """
         # Run matching cascade.
         matches, unmatched_tracks, unmatched_detections = \
-            self._match(detections)
+            self._match(detections)    # 比如 matches: [(0, 1), (1, 0), (2, 3), (3, 2), (4, 6), (5, 5), (6, 4), (7, 7), (8, 8), (9, 9), (10, 11)]
+                                        # unmatched_detections: [10]  unmatched_tracks: []   matche 左边是 track_idx ，右边是 detection_idx
+        det_id_2_track_id = dict()  # det_id_2_track_id 第一部分来自于matches，第二部分来自于unmatched_detections
+        for track_idx, detection_idx in matches:
+            det_id_2_track_id[detection_idx] = track_idx        # det_id_2_track_id 的第一部分
 
         # Update track set.
         for track_idx, detection_idx in matches:
@@ -75,7 +79,9 @@ class Tracker:
         for track_idx in unmatched_tracks:
             self.tracks[track_idx].mark_missed()
         for detection_idx in unmatched_detections:
+            det_id_2_track_id[detection_idx] = self._next_id    # det_id_2_track_id 的第二部分
             self._initiate_track(detections[detection_idx])
+
         self.tracks = [t for t in self.tracks if not t.is_deleted()]
 
         # Update distance metric.
@@ -89,6 +95,8 @@ class Tracker:
             track.features = []
         self.metric.partial_fit(
             np.asarray(features), np.asarray(targets), active_targets)
+
+        return det_id_2_track_id  # det_id_2_track_id 第一部分来自于matches，第二部分来自于unmatched_detections
 
     def _match(self, detections):
 
