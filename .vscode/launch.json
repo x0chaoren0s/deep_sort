@@ -38,12 +38,44 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "--sequence_dir", "datasets/lingshui/30fps300s",
-                "--detection_file", "",
                 "--min_confidence", "0.3",
                 "--nn_budget", "100",
-                "--display", "False",
-                "--output_file", "output/30fps300s.txt"
+                "--output_file", "output/30fps300s_copyAPFeature_Masks.txt",
+                "--draw_masks", "True",
+                "--draw_detections", "False",
+                "--draw_tracks", "False",
+                "--draw_trails", "False",
+                "--build_video", "True"
+            ]
+        },
+        {
+            "name": "Python: data.py",
+            "type": "python",
+            "request": "launch",
+            "program": "/home/xxy/deep_sort/my_deep_sort/utils/data.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+            ]
+        },
+        {
+            "name": "Python: encoder.py",
+            "type": "python",
+            "request": "launch",
+            "program": "/home/xxy/deep_sort/my_deep_sort/utils/encoder.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+            ]
+        },
+        {
+            "name": "Python: visualization.py",
+            "type": "python",
+            "request": "launch",
+            "program": "/home/xxy/deep_sort/application_util/visualization.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
             ]
         }
     ]
