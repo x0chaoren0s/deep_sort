@@ -47,3 +47,7 @@ class Detection(object):
         ret[:2] += ret[2:] / 2      # (x1+w/2,y1+h/2,w  ,h)
         ret[2] /= ret[3]            # (x1+w/2,y1+h/2,w/h,h)
         return ret
+
+    def get_center(self):
+        x,y,w,h = self.tlwh
+        return int(x+w/2), int(y+h/2) 
