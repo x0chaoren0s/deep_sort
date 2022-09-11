@@ -38,9 +38,10 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
+                "--apExtractor_type", "res18",
                 "--min_confidence", "0.3",
                 "--nn_budget", "100",
-                "--output_file", "output/30fps300s_copyAPFeature_Masks.txt",
+                "--output_file", "output/30fps300s_res18APFeature_Masks.txt",
                 "--draw_masks", "True",
                 "--draw_detections", "False",
                 "--draw_tracks", "False",
@@ -76,6 +77,24 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
+            ]
+        },
+        {
+            "name": "Python: evaluate_motchallenge.py",
+            "type": "python",
+            "request": "launch",
+            "program": "/home/xxy/deep_sort/evaluate_motchallenge.py",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "args": [
+                "--mot_dir", "/home/xxy/deep_sort/MOT16/train",
+                "--detection_dir", "/home/xxy/deep_sort/MOT16/train/MOT16-02/det/det.txt",
+                "--output_dir", "output/MOT16-02",
+                "--min_confidence", "0.5",
+                "--min_detection_height", "0",
+                "--nms_max_overlap", "0.7",
+                "--max_cosine_distance", "0.5",
+                "--nn_budget", "100"
             ]
         }
     ]
