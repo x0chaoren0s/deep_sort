@@ -199,7 +199,7 @@ def buildLingshuiFramePatchDataset2(labelmeJsonFolder, outputFolder, bbox_move=0
             patch_id += 1
 
 class LingshuiFramePatchDataset(Dataset):
-    def __init__(self, patchFolder, patch_resize=(224,224)) -> None:
+    def __init__(self, patchFolder, patch_resize=(224,224), device='cuda:1') -> None:
         '''
         patchFolder 内部需要包含 positive 和 negative 两个文件夹，分别存放(不一定等量)正负样本的 frame-patch 图片 \n
         返回的 dataset 前半部分是正样本，后半部分是负样本，dataset.len 是正负样本总和 \n
@@ -216,6 +216,7 @@ class LingshuiFramePatchDataset(Dataset):
         self.poslen = len(os.listdir(self.posFolder))
         self.neglen = len(os.listdir(self.negFolder))
         self.len = self.poslen + self.neglen
+        self.device = device
 
 
     def __getitem__(self, index):
@@ -225,9 +226,9 @@ class LingshuiFramePatchDataset(Dataset):
         img = cv2.resize(img, self.patch_resize)
         img = Tensor(img).float()
         img = img.permute(2,0,1)
-        tag = [0.98] if index<<self.poslen else [0.02]
+        tag = [0.98] if index < self.poslen else [0.02]
         tag = Tensor(tag).float()
-        return img, tag
+        return img.to(self.device), tag.to(self.device)
 
     
     def __len__(self):
@@ -247,4 +248,6 @@ if __name__ == '__main__':
     # print(d['0222.jpg'])
     # print(d['022s2.jpg'])
     # buildLingshuiFramePatchDataset(imgFolder, patchFolder, 0.9, 0)
-    buildLingshuiFramePatchDataset2(labelmeJsonFolder, patchFolder2, 0)
+    # buildLingshuiFramePatchDataset2(labelmeJsonFolder, patchFolder2, 0)
+    lfd = LingshuiFramePatchDataset(patchFolder2)
+    print(66)
