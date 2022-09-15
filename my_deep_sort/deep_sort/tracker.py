@@ -15,9 +15,14 @@ class Tracker:
     ----------
     metric : nn_matching.NearestNeighborDistanceMetric
         A distance metric for measurement-to-track association.
+    args : parser.parse_args()
+
+    Parameters in args
+    ----------
     max_age : int
         Maximum number of missed misses before a track is deleted.
     n_init : int
+        Number of frames that a track remains in initialization phase.
         Number of consecutive detections before the track is confirmed. The
         track state is set to `Deleted` if a miss occurs within the first
         `n_init` frames.
@@ -26,10 +31,6 @@ class Tracker:
     ----------
     metric : nn_matching.NearestNeighborDistanceMetric
         The distance metric used for measurement to track association.
-    max_age : int
-        Maximum number of missed misses before a track is deleted.
-    n_init : int
-        Number of frames that a track remains in initialization phase.
     kf : kalman_filter.KalmanFilter
         A Kalman filter to filter target trajectories in image space.
     tracks : List[Track]
@@ -37,11 +38,11 @@ class Tracker:
 
     """
 
-    def __init__(self, metric, max_iou_distance=0.7, max_age=30, n_init=3):
+    def __init__(self, metric, args, max_iou_distance=0.7):
         self.metric = metric
         self.max_iou_distance = max_iou_distance
-        self.max_age = max_age
-        self.n_init = n_init
+        self.max_age = args.max_age  # Maximum number of missed misses before a track is deleted.
+        self.n_init = args.n_init    # Number of frames that a track remains in initialization phase.
 
         self.kf = kalman_filter.KalmanFilter()
         self.tracks = []
@@ -66,7 +67,11 @@ class Tracker:
         """
         # Run matching cascade.
         matches, unmatched_tracks, unmatched_detections = \
-            self._match(detections)
+            self._match(detections)    # 比如 matches: [(0, 1), (1, 0), (2, 3), (3, 2), (4, 6), (5, 5), (6, 4), (7, 7), (8, 8), (9, 9), (10, 11)]
+                                        # unmatched_detections: [10]  unmatched_tracks: []   matche 左边是 track_idx ，右边是 detection_idx
+        det_id_2_track_id = dict()  # det_id_2_track_id 第一部分来自于matches，第二部分来自于unmatched_detections
+        for track_idx, detection_idx in matches:
+            det_id_2_track_id[detection_idx] = track_idx        # det_id_2_track_id 的第一部分
 
         # Update track set.
         for track_idx, detection_idx in matches:
@@ -75,7 +80,9 @@ class Tracker:
         for track_idx in unmatched_tracks:
             self.tracks[track_idx].mark_missed()
         for detection_idx in unmatched_detections:
+            det_id_2_track_id[detection_idx] = self._next_id    # det_id_2_track_id 的第二部分
             self._initiate_track(detections[detection_idx])
+
         self.tracks = [t for t in self.tracks if not t.is_deleted()]
 
         # Update distance metric.
@@ -89,6 +96,8 @@ class Tracker:
             track.features = []
         self.metric.partial_fit(
             np.asarray(features), np.asarray(targets), active_targets)
+
+        return det_id_2_track_id, matches, unmatched_tracks, unmatched_detections  # det_id_2_track_id 第一部分来自于matches，第二部分来自于unmatched_detections
 
     def _match(self, detections):
 
@@ -133,7 +142,7 @@ class Tracker:
         return matches, unmatched_tracks, unmatched_detections
 
     def _initiate_track(self, detection):
-        mean, covariance = self.kf.initiate(detection.to_xyah())
+        mean, covariance = self.kf.initiate(detection.to_xyah())   # detection.to_xyah(): (x1+w/2,y1+h/2,w/h,h)
         self.tracks.append(Track(
             mean, covariance, self._next_id, self.n_init, self.max_age,
             detection.feature))

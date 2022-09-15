@@ -105,24 +105,29 @@ class NearestNeighborDistanceMetric(object):
     ----------
     metric : str
         Either "euclidean" or "cosine".
-    matching_threshold: float
-        The matching threshold. Samples with larger distance are considered an
-        invalid match.
-    budget : Optional[int]
+    args : parser.parse_args() 
+
+    Parameters in args
+    ----------
+    max_cosine_distance: float
+        Used for matching_threshold.
+    nn_budget : Optional[int]
         If not None, fix samples per class to at most this number. Removes
         the oldest samples when the budget is reached.
+        default=None
 
     Attributes
     ----------
+    matching_threshold: float
+        The matching threshold. Samples with larger distance are considered an
+        invalid match.
     samples : Dict[int -> List[ndarray]]
         A dictionary that maps from target identities to the list of samples
         that have been observed so far.
 
     """
 
-    def __init__(self, metric, matching_threshold, budget=None):
-
-
+    def __init__(self, metric, args):
         if metric == "euclidean":
             self._metric = _nn_euclidean_distance
         elif metric == "cosine":
@@ -130,8 +135,8 @@ class NearestNeighborDistanceMetric(object):
         else:
             raise ValueError(
                 "Invalid metric; must be either 'euclidean' or 'cosine'")
-        self.matching_threshold = matching_threshold
-        self.budget = budget
+        self.matching_threshold = args.max_cosine_distance
+        self.budget = args.nn_budget
         self.samples = {}
 
     def partial_fit(self, features, targets, active_targets):
