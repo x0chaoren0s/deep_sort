@@ -212,18 +212,18 @@ class KalmanFilter(object):
         covariance : ndarray
             Covariance of the state distribution (8x8 dimensional).
         measurements : ndarray
-            An Nx4 dimensional matrix of N measurements, each in.
-            format (x, y, a, h) where (x, y) is the bounding box center.
-            position, a the aspect ratio, and h the height..
-        only_position : Optional[bool].
-            If True, distance computation is done with respect to the bounding.
-            box center position only..
-.
-        Returns.
-        -------.
-        ndarray.
-            Returns an array of length N, where the i-th element contains the.
-            squared Mahalanobis distance between (mean, covariance) and.
+            An Nx4 dimensional matrix of N measurements, each in
+            format (x, y, a, h) where (x, y) is the bounding box center
+            position, a the aspect ratio, and h the height.
+        only_position : Optional[bool]
+            If True, distance computation is done with respect to the bounding
+            box center position only.
+
+        Returns
+        -------
+        ndarray
+            Returns an array of length N, where the i-th element contains the
+            squared Mahalanobis distance between (mean, covariance) and
             `measurements[i]`.
 
         """
