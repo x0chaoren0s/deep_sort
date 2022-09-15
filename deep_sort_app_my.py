@@ -22,15 +22,17 @@ import random
 
 # 观测手段：图像识别检测器
 config_file = '/home/xxy/mmdetection/work_dirs/mask2former_swin-s-p4-w7-224_lsj_8x2_50e_coco_FlatCosineAnnealing/mask2former_swin-s-p4-w7-224_lsj_8x2_50e_coco.py'
-checkpoint_file = '/home/xxy/mmdetection/work_dirs/mask2former_swin-s-p4-w7-224_lsj_8x2_50e_coco_FlatCosineAnnealing/epoch_2000.pth'
-detector = Detector(config_file, checkpoint_file)
+checkpoint_file_detector = '/home/xxy/mmdetection/work_dirs/mask2former_swin-s-p4-w7-224_lsj_8x2_50e_coco_FlatCosineAnnealing/epoch_2000.pth'
+detector = Detector(config_file, checkpoint_file_detector)
 
 # 卡尔曼滤波更新辅助工具：表观特征抽取器
-# apExtracker = ApparentFeatureExtracker('') # 还没实现，只写了接口extract_feature，因此其返回一个128维随机特征
-apExtracker = ApparentFeatureCopier('') # 直接循环复制 resources/detections/MOT16_POI_test/MOT16-06.npy 中的特征
+apExtrackers = {
+    'copy':     ApparentFeatureCopier(''),  # 直接循环复制 resources/detections/MOT16_POI_test/MOT16-06.npy 中的特征
+    'res18':    ApparentFeatureExtracker('/home/xxy/deep_sort/my_deep_sort/detector_checkpoints/renet18/epoch300.pth')
+}
 
 
-def create_detections(img, min_height=0):
+def create_detections(img, min_height=0, apExtractor_type='res18'):
     """Create detections for given frame index from the raw detection matrix.
 
     Parameters
@@ -39,6 +41,7 @@ def create_detections(img, min_height=0):
     min_height : Optional[int]
         A minimum detection bounding box height. Detections that are smaller
         than this value are disregarded.
+    apExtractor_type : 'copy' or 'res18' for now.
 
     Returns
     -------
@@ -46,11 +49,13 @@ def create_detections(img, min_height=0):
         Returns detection responses at given frame index.
 
     """
+    assert apExtractor_type in apExtrackers
+    apExtracker = apExtrackers[apExtractor_type]
     
     detections  = detector.detect(img) #( [np.array(100个检测框：[x1,y1,w,h,confidence],[],..)],  [[100个mask：np.array(..),np.array()，..]]  )
     masks       = detections[1][0] # [100个mask：np.array(..),np.array()，..]
     detections  = detections[0][0] # np.array(100个检测框：[x1,y1,w,h,confidence],[],..)
-    detections  = [ (*d,*apExtracker.extract_feature(img, d)) for d in detections] # [ (tlwh,confidence,feature),(),.. ]
+    detections  = [ (*d,*apExtracker.extract_feature(img, d)) for d in detections] # [ (tlwh,confidence,feature),(),.. ],  img:cv2的image
 
     detection_list = []
     for d in detections: # row.shape: (138)
@@ -65,12 +70,13 @@ def get_center(tlwh):
     return int(x+w/2), int(y+h/2)
 
 def run(output_file, build_video, min_confidence,
-        nms_max_overlap, min_detection_height, max_cosine_distance,
+        nms_max_overlap, min_detection_height, max_cosine_distance, max_age,
+        apExtractor_type,
         nn_budget, draw_masks, draw_detections, draw_tracks, draw_trails):
 
     metric = nn_matching.NearestNeighborDistanceMetric(
         "cosine", max_cosine_distance, nn_budget)
-    tracker = Tracker(metric)
+    tracker = Tracker(metric, max_age=max_age)
     results = []            # [ [frame_idx, track_id, *tlwh],[],.. ]
     trails  = dict()        # { track_id:[[本track最近trail_len帧框的中心点],最近的frame_id] }
     trail_len = 10          # 每条轨迹记录的最多历史帧数
@@ -85,7 +91,7 @@ def run(output_file, build_video, min_confidence,
         # Load image and generate detections.
         img = dataset[frame_idx]
         detections, masks = create_detections(
-            img, min_detection_height)
+            img, min_detection_height, apExtractor_type=apExtractor_type)
         # detections: [ (tlwh,confidence,feature),(),.. ], masks: [100个mask：np.array(..),np.array()，..]
         # detections = [d for d in detections if d.confidence >= min_confidence]
         tmp_detections, tmp_masks = [], []
@@ -106,10 +112,10 @@ def run(output_file, build_video, min_confidence,
 
         # Update tracker. 
         tracker.predict()
-        det_id_2_track_id = tracker.update(detections)  # detections: [ (tlwh,confidence,feature),(),.. ]
+        det_id_2_track_id, matches, unmatched_tracks, unmatched_detections = tracker.update(detections)  # detections: [ (tlwh,confidence,feature),(),.. ]
             # det_id_2_track_id 第一部分来自于matches，第二部分来自于unmatched_detections
             # det_id_2_track_id 用于产生标记展示图象的labels
-        labels = [str(det_id_2_track_id[det_id]) for det_id in range(len(detections))]
+        trk_labels = [str(det_id_2_track_id[det_id]) for det_id in range(len(detections))]
         for det_idx in range(len(detections)):
             track_idx = det_id_2_track_id[det_idx]
             if track_idx not in track_colors:
@@ -128,18 +134,19 @@ def run(output_file, build_video, min_confidence,
         # Update visualization.
         vis.set_image(img.copy())
         if draw_detections:
-            vis.draw_detections(detections, labels, colors=det_colors)    # detections: [ (tlwh,confidence,feature),(),.. ]
+            vis.draw_detections(detections, trk_labels, colors=det_colors)    # detections: [ (tlwh,confidence,feature),(),.. ]
         if draw_tracks:
             vis.draw_trackers(tracker.tracks, track_colors=track_colors)  
         if draw_masks:
-            vis.draw_detection_masks(masks, colors=det_colors, labels=labels)
+            # vis.draw_detection_masks(masks, colors=det_colors, labels=trk_labels) # 应该画trks对应的dets的masks，而不是直接dets的masks
+            pass
         if draw_trails:
             vis.draw_trails(trails, frame_idx, colors=det_colors)
 
         # Store results.
         for track in tracker.tracks:
-            if not track.is_confirmed() or track.time_since_update > 1:
-                continue
+            # if not track.is_confirmed() or track.time_since_update > 1:
+            #     continue
             bbox = track.to_tlwh()
             results.append([
                 frame_idx, track.track_id, bbox[0], bbox[1], bbox[2], bbox[3]])
@@ -191,6 +198,12 @@ def parse_args():
         "--nms_max_overlap",  help="Non-maxima suppression threshold: Maximum "
         "detection overlap.", default=1.0, type=float)
     parser.add_argument(
+        "--max_age",  help="Maximum number of missed misses before a track is deleted.",
+        default=30, type=int)
+    parser.add_argument(
+        "--apExtractor_type",  help="'copy' or 'res18' for now.", 
+        default='res18', type=str, choices=['copy', 'res18'])
+    parser.add_argument(
         "--max_cosine_distance", help="Gating threshold for cosine distance "
         "metric (object appearance).", type=float, default=0.2)
     parser.add_argument(
@@ -222,5 +235,6 @@ if __name__ == "__main__":
     run(
         args.output_file, args.build_video,
         args.min_confidence, args.nms_max_overlap, args.min_detection_height,
-        args.max_cosine_distance, args.nn_budget, 
+        args.max_cosine_distance, args.max_age, 
+        args.apExtractor_type, args.nn_budget, 
         args.draw_masks, args.draw_detections, args.draw_tracks, args.draw_trails)
