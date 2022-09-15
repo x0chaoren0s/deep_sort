@@ -96,7 +96,7 @@ class Tracker:
         self.metric.partial_fit(
             np.asarray(features), np.asarray(targets), active_targets)
 
-        return det_id_2_track_id  # det_id_2_track_id 第一部分来自于matches，第二部分来自于unmatched_detections
+        return det_id_2_track_id, matches, unmatched_tracks, unmatched_detections  # det_id_2_track_id 第一部分来自于matches，第二部分来自于unmatched_detections
 
     def _match(self, detections):
 
@@ -141,7 +141,7 @@ class Tracker:
         return matches, unmatched_tracks, unmatched_detections
 
     def _initiate_track(self, detection):
-        mean, covariance = self.kf.initiate(detection.to_xyah())
+        mean, covariance = self.kf.initiate(detection.to_xyah())   # detection.to_xyah(): (x1+w/2,y1+h/2,w/h,h)
         self.tracks.append(Track(
             mean, covariance, self._next_id, self.n_init, self.max_age,
             detection.feature))
