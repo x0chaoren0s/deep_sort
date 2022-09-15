@@ -7,11 +7,16 @@ import os
 import cv2
 import numpy as np
 
-from application_util import preprocessing
-from application_util import visualization
-from deep_sort import nn_matching
-from deep_sort.detection import Detection
-from deep_sort.tracker import Tracker
+# from application_util import preprocessing
+# from application_util import visualization
+# from deep_sort import nn_matching
+# from deep_sort.detection import Detection
+# from deep_sort.tracker import Tracker
+from my_deep_sort.application_util import preprocessing
+from my_deep_sort.application_util import visualization
+from my_deep_sort.deep_sort import nn_matching
+from my_deep_sort.deep_sort.detection import Detection
+from my_deep_sort.deep_sort.tracker import Tracker
 
 from my_deep_sort.utils.data import LingshuiFrameDataset
 from my_deep_sort.utils.detector import Detector
@@ -32,15 +37,20 @@ apExtrackers = {
 }
 
 
-def create_detections(img, min_height=0, apExtractor_type='res18'):
+def create_detections(img, args):
     """Create detections for given frame index from the raw detection matrix.
 
     Parameters
     ----------
     img : img 为单张图片的路径，或np.ndarray
+    args : parser.parse_args()
+
+    Parameters in args
+    ----------
     min_height : Optional[int]
         A minimum detection bounding box height. Detections that are smaller
         than this value are disregarded.
+        default=0
     apExtractor_type : 'copy' or 'res18' for now.
 
     Returns
@@ -49,8 +59,8 @@ def create_detections(img, min_height=0, apExtractor_type='res18'):
         Returns detection responses at given frame index.
 
     """
-    assert apExtractor_type in apExtrackers
-    apExtracker = apExtrackers[apExtractor_type]
+    assert args.apExtractor_type in apExtrackers
+    apExtracker = apExtrackers[args.apExtractor_type]
     
     detections  = detector.detect(img) #( [np.array(100个检测框：[x1,y1,w,h,confidence],[],..)],  [[100个mask：np.array(..),np.array()，..]]  )
     masks       = detections[1][0] # [100个mask：np.array(..),np.array()，..]
@@ -60,7 +70,7 @@ def create_detections(img, min_height=0, apExtractor_type='res18'):
     detection_list = []
     for d in detections: # row.shape: (138)
         bbox, confidence, feature = d[:4], d[4], d[5:]  # box: tlwh
-        if bbox[3] < min_height:
+        if bbox[3] < args.min_height:
             continue
         detection_list.append(Detection(bbox, confidence, feature)) # feature.shape:(128)
     return detection_list, masks # [ (tlwh,confidence,feature),(),.. ], [100个mask：np.array(..),np.array()，..]
@@ -69,14 +79,9 @@ def get_center(tlwh):
     x,y,w,h = tlwh
     return int(x+w/2), int(y+h/2)
 
-def run(output_file, build_video, min_confidence,
-        nms_max_overlap, min_detection_height, max_cosine_distance, max_age,
-        apExtractor_type,
-        nn_budget, draw_masks, draw_detections, draw_tracks, draw_trails):
-
-    metric = nn_matching.NearestNeighborDistanceMetric(
-        "cosine", max_cosine_distance, nn_budget)
-    tracker = Tracker(metric, max_age=max_age)
+def run(args):
+    metric = nn_matching.NearestNeighborDistanceMetric("cosine", args)
+    tracker = Tracker(metric, args)
     results = []            # [ [frame_idx, track_id, *tlwh],[],.. ]
     trails  = dict()        # { track_id:[[本track最近trail_len帧框的中心点],最近的frame_id] }
     trail_len = 10          # 每条轨迹记录的最多历史帧数
@@ -90,13 +95,12 @@ def run(output_file, build_video, min_confidence,
 
         # Load image and generate detections.
         img = dataset[frame_idx]
-        detections, masks = create_detections(
-            img, min_detection_height, apExtractor_type=apExtractor_type)
+        detections, masks = create_detections(img, args)
         # detections: [ (tlwh,confidence,feature),(),.. ], masks: [100个mask：np.array(..),np.array()，..]
         # detections = [d for d in detections if d.confidence >= min_confidence]
         tmp_detections, tmp_masks = [], []
         for i,d in enumerate(detections):
-            if d.confidence >= min_confidence:
+            if d.confidence >= args.min_confidence:
                 tmp_detections.append(d)
                 tmp_masks.append(masks[i])
         detections, masks = tmp_detections, tmp_masks
@@ -106,7 +110,7 @@ def run(output_file, build_video, min_confidence,
         boxes = np.array([d.tlwh for d in detections])
         scores = np.array([d.confidence for d in detections])
         indices = preprocessing.non_max_suppression(
-            boxes, nms_max_overlap, scores)
+            boxes, args, scores)
         detections = [detections[i] for i in indices]
         masks = [masks[i] for i in indices]
 
@@ -133,14 +137,14 @@ def run(output_file, build_video, min_confidence,
 
         # Update visualization.
         vis.set_image(img.copy())
-        if draw_detections:
+        if args.draw_detections:
             vis.draw_detections(detections, trk_labels, colors=det_colors)    # detections: [ (tlwh,confidence,feature),(),.. ]
-        if draw_tracks:
+        if args.draw_tracks:
             vis.draw_trackers(tracker.tracks, track_colors=track_colors)  
-        if draw_masks:
-            # vis.draw_detection_masks(masks, colors=det_colors, labels=trk_labels) # 应该画trks对应的dets的masks，而不是直接dets的masks
-            pass
-        if draw_trails:
+        if args.draw_masks:
+            vis.draw_detection_masks(masks, colors=det_colors, labels=trk_labels) # 应该画trks对应的dets的masks，而不是直接dets的masks
+            # pass
+        if args.draw_trails:
             vis.draw_trails(trails, frame_idx, colors=det_colors)
 
         # Store results.
@@ -154,7 +158,7 @@ def run(output_file, build_video, min_confidence,
     # last_idx = dataset.size - 1
     last_idx = 150
     output_image_folder = \
-        os.path.splitext(output_file)[0]
+        os.path.splitext(args.output_file)[0]
     first_idx, last_idx, image_shape, image_names = \
         frame_idx,last_idx,dataset.image_shape[::-1],dataset.image_names
     visualizer = visualization.Visualization_only_save_image(
@@ -163,11 +167,11 @@ def run(output_file, build_video, min_confidence,
 
     
     # Store results.
-    f = open(output_file, 'w')
+    f = open(args.output_file, 'w')
     for row in results:
         print('%d,%d,%.2f,%.2f,%.2f,%.2f,1,-1,-1,-1' % (
             row[0], row[1], row[2], row[3], row[4], row[5]),file=f)
-    if build_video:
+    if args.build_video:
         build_video_cmd = f'ffmpeg -r 30 -i {os.path.join(output_image_folder,r"%04d.jpg")} {output_image_folder+".mp4"} -y'
         os.system(build_video_cmd)
 
@@ -187,6 +191,10 @@ def parse_args():
         " contain the tracking results on completion.",
         default="/tmp/hypotheses.txt")
     parser.add_argument(
+        "--min_height", help="A minimum detection bounding box height. "
+        "Detections that are smaller than this value are disregarded.",
+        default=0, type=int)
+    parser.add_argument(
         "--min_confidence", help="Detection confidence threshold. Disregard "
         "all detections that have a confidence lower than this value.",
         default=0.8, type=float)
@@ -196,13 +204,22 @@ def parse_args():
         "disregarded", default=0, type=int)
     parser.add_argument(
         "--nms_max_overlap",  help="Non-maxima suppression threshold: Maximum "
-        "detection overlap.", default=1.0, type=float)
+        "detection overlap. \n ROIs that overlap more than this values are suppressed.", 
+        default=1.0, type=float)
     parser.add_argument(
         "--max_age",  help="Maximum number of missed misses before a track is deleted.",
         default=30, type=int)
     parser.add_argument(
+        "--n_init",  help="Number of frames that a track remains in initialization phase. \n" + 
+        "Number of consecutive detections before the track is confirmed. The track state " +
+        "is set to `Deleted` if a miss occurs within the first `n_init` frames.",
+        default=3, type=int)
+    parser.add_argument(
         "--apExtractor_type",  help="'copy' or 'res18' for now.", 
         default='res18', type=str, choices=['copy', 'res18'])
+    parser.add_argument(
+        "--kalmanFilter_type",  help="'raw' or 'ana_solu' for now.", 
+        default='raw', type=str, choices=['raw', 'ana_solu'])
     parser.add_argument(
         "--max_cosine_distance", help="Gating threshold for cosine distance "
         "metric (object appearance).", type=float, default=0.2)
@@ -232,9 +249,4 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    run(
-        args.output_file, args.build_video,
-        args.min_confidence, args.nms_max_overlap, args.min_detection_height,
-        args.max_cosine_distance, args.max_age, 
-        args.apExtractor_type, args.nn_budget, 
-        args.draw_masks, args.draw_detections, args.draw_tracks, args.draw_trails)
+    run(args)
