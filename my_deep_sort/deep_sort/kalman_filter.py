@@ -41,10 +41,10 @@ class KalmanFilter(object):
         ndim, dt = 4, 1.
 
         # Create Kalman filter model matrices.
-        self._motion_mat = np.eye(2 * ndim, 2 * ndim)
+        self._motion_mat = np.eye(2 * ndim, 2 * ndim)   # F
         for i in range(ndim):
             self._motion_mat[i, ndim + i] = dt
-        self._update_mat = np.eye(ndim, 2 * ndim)
+        self._update_mat = np.eye(ndim, 2 * ndim)       # H
 
         # Motion and observation uncertainty are chosen relative to the current
         # state estimate. These weights control the amount of uncertainty in
@@ -83,7 +83,7 @@ class KalmanFilter(object):
             1e-5,
             10 * self._std_weight_velocity * measurement[3]]
         covariance = np.diag(np.square(std))
-        return mean, covariance
+        return mean, covariance     # X_{0,0}, P_{0,0}
 
     def predict(self, mean, covariance):
         """Run Kalman filter prediction step.
@@ -124,7 +124,7 @@ class KalmanFilter(object):
         covariance = np.linalg.multi_dot((
             self._motion_mat, covariance, self._motion_mat.T)) + motion_cov
 
-        return mean, covariance
+        return mean, covariance     # X_{k+1,k}, P_{k+1,k} 
 
     def project(self, mean, covariance):
         """Project state distribution to measurement space.
@@ -151,12 +151,12 @@ class KalmanFilter(object):
             self._std_weight_position * mean[3]]
         innovation_cov = np.diag(np.square(std))
 
-        # 将均值向量映射到检测空间，即 Hx'
+        # 将均值向量映射到检测空间，即 z=Hx'
         mean = np.dot(self._update_mat, mean)
-        # 将协方差矩阵映射到检测空间，即 HP'H^T+R
+        # 将协方差矩阵映射到检测空间，即 S=HP'H^T+R
         covariance = np.linalg.multi_dot((
             self._update_mat, covariance, self._update_mat.T))
-        return mean, covariance + innovation_cov
+        return mean, covariance + innovation_cov    # Z, S
 
     def update(self, mean, covariance, measurement):
         """Run Kalman filter correction step.
@@ -201,7 +201,7 @@ class KalmanFilter(object):
         # 经https://zhuanlan.zhihu.com/p/497786053证明 KHP'==KSK.T
         new_covariance = covariance - np.linalg.multi_dot((
             kalman_gain, projected_cov, kalman_gain.T))
-        return new_mean, new_covariance
+        return new_mean, new_covariance     # X_{k,k}, P_{k,k}
 
     def gating_distance(self, mean, covariance, measurements,
                         only_position=False):
@@ -263,6 +263,32 @@ class KalmanFilter(object):
         squared_maha = np.sum(z * z, axis=0)
         return squared_maha # shape: (22,)
 
+
+'''
+扩展上面的原版官方卡尔曼包的关键位置：
+__init__():
+    F: self._motion_mat
+    H: self._update_mat
+initiate():
+    X_{0,0}: return[0] == mean
+    P_{0,0}: return[1] == covariance
+predict():
+    Q: motion_cov
+    # X_{k+1,k}: return[0] == mean        # 这两个自动运算，不用改
+    # P_{k+1,k}: return[1] == covariance
+project():
+    R: innovation_cov
+    # Z: return[0] == mean                # 这两个自动运算，不用改
+    # S: return[1] == covariance + innovation_cov
+update():
+    # 应该完全不用改
+gating_distance():
+    # 应该完全不用改
+'''
+
+
+
+
 class kalmanFilter_QR(KalmanFilter):
     """
     定制卡尔曼滤波器的 Q(motion_cov:预测过程中噪声协方差) 和 R(innovation_cov:测量过程中噪声的协方差)
@@ -274,18 +300,22 @@ class kalmanFilter_QR(KalmanFilter):
     """
     def __init__(self, args):
         '''
+        预测模型和原版保持一致，仅扩展Q和R。 \n
+        8维状态空间： [x, y, a, h,    x', y', a', h'].T  \n
+        4维观测空间： [x, y, a, h].T  \n
         Parameters in args
         ----------
         Q_times : 超参数，用于调整 超参数motion_cov（过程噪声协方差） 的大小
         R_times : 超参数，用于调整 超参数innovation_cov（观测噪声协方差） 的大小
         '''
-        self.ndim, self.dt = 4, 1.
+        self.ndim, dt = 4, 1.
+        self.xdim, self.zdim = 8, 4
 
         # Create Kalman filter model matrices.
-        self._motion_mat = np.eye(2 * self.ndim, 2 * self.ndim)
+        self._motion_mat = np.eye(self.xdim, self.xdim)   # F
         for i in range(self.ndim):
-            self._motion_mat[i, self.ndim + i] = self.dt
-        self._update_mat = np.eye(self.ndim, 2 * self.ndim)
+            self._motion_mat[i, self.ndim + i] = dt
+        self._update_mat = np.eye(self.zdim, self.xdim)       # H
 
         # Motion and observation uncertainty are chosen relative to the current
         # state estimate. These weights control the amount of uncertainty in
@@ -316,7 +346,7 @@ class kalmanFilter_QR(KalmanFilter):
 
         """
         # motion_cov == Q 预测过程中噪声协方差
-        motion_cov = np.diag(np.random.random(2*self.ndim)) * self.Q_times
+        motion_cov = np.diag(np.random.random(self.xdim)) * self.Q_times
 
         # x' = Fx
         mean = np.dot(self._motion_mat, mean)
@@ -344,7 +374,7 @@ class kalmanFilter_QR(KalmanFilter):
 
         """
         # innovation_cov == R 测量过程中噪声的协方差
-        innovation_cov = np.diag(np.random.random(self.ndim)) * self.R_times
+        innovation_cov = np.diag(np.random.random(self.zdim)) * self.R_times
 
         # 将均值向量映射到检测空间，即 Hx'
         mean = np.dot(self._update_mat, mean)
@@ -352,3 +382,92 @@ class kalmanFilter_QR(KalmanFilter):
         covariance = np.linalg.multi_dot((
             self._update_mat, covariance, self._update_mat.T))
         return mean, covariance + innovation_cov
+
+class kalmanFilter_xy(kalmanFilter_QR):
+    '''
+    预测模型中对x和y的加速度建模
+    10维状态空间： [x, y, a, h,    x', y', a', h',   x'', y''].T
+     4维观测空间： [x, y, a, h].T
+    '''
+    def __init__(self, args):
+        '''
+        预测模型中对x和y的加速度建模，并扩展Q和R。 \n
+        10维状态空间： [x, y, a, h,    x', y', a', h',   x'', y''].T \n
+        4维观测空间： [x, y, a, h].T \n
+        Parameters in args
+        ----------
+        Q_times : 超参数，用于调整 超参数motion_cov（过程噪声协方差） 的大小
+        R_times : 超参数，用于调整 超参数innovation_cov（观测噪声协方差） 的大小
+        '''
+        self.ndim, dt = 4, 1.
+        self.xdim, self.zdim = 10, 4
+
+        # Create Kalman filter model matrices.
+        self._motion_mat = np.array([       # F: 10*10
+            [1,0,0,0,   dt, 0, 0, 0,    0.5*dt*dt,         0],
+            [0,1,0,0,    0,dt, 0, 0,    0,         0.5*dt*dt],
+            [0,0,1,0,    0, 0,dt, 0,    0,                 0],
+            [0,0,0,1,    0, 0, 0,dt,    0,                 0],
+            
+            [0,0,0,0,    1, 0, 0, 0,    dt,                0],
+            [0,0,0,0,    0, 1, 0, 0,    0,                dt],
+            [0,0,0,0,    0, 0, 1, 0,    0,                 0],
+            [0,0,0,0,    0, 0, 0, 1,    0,                 0],
+            
+            [0,0,0,0,    0, 0, 0, 0,    1,                 0],
+            [0,0,0,0,    0, 0, 0, 0,    0,                 1],
+        ])
+        self._update_mat = np.array([       # H: 4*10
+            [1,0,0,0,    0, 0, 0, 0,    0,                 0],
+            [0,1,0,0,    0, 0, 0, 0,    0,                 0],
+            [0,0,1,0,    0, 0, 0, 0,    0,                 0],
+            [0,0,0,1,    0, 0, 0, 0,    0,                 0]
+        ])
+
+        # Motion and observation uncertainty are chosen relative to the current
+        # state estimate. These weights control the amount of uncertainty in
+        # the model. This is a bit hacky.
+        self._std_weight_position = 1. / 20
+        self._std_weight_velocity = 1. / 160
+        self._std_weight_acceleration = 1. / 3000
+        assert args.Q_times > 0 and args.R_times > 0
+        self.Q_times = args.Q_times
+        self.R_times = args.R_times
+
+    def initiate(self, measurement):
+        """Create track from unassociated measurement.
+
+        Parameters
+        ----------
+        measurement : ndarray
+            Bounding box coordinates (x, y, a, h) with center position (x, y),
+            aspect ratio a, and height h.
+
+        Returns
+        -------
+        (ndarray, ndarray)
+            Returns the mean vector (8 dimensional) and covariance matrix (8x8
+            dimensional) of the new track. Unobserved velocities are initialized
+            to 0 mean.
+
+        """
+        mean_pos = measurement              # x,y,a,h
+        mean_vel = np.zeros_like(mean_pos)  # x',y',a',h'
+        mean_acc = np.zeros(2)              # x'',y''
+        mean = np.r_[mean_pos, mean_vel, mean_acc]    # X00
+
+        std = [
+            2 * self._std_weight_position * measurement[3],
+            2 * self._std_weight_position * measurement[3],
+            1e-2,
+            2 * self._std_weight_position * measurement[3],
+
+            10 * self._std_weight_velocity * measurement[3],
+            10 * self._std_weight_velocity * measurement[3],
+            1e-5,
+            10 * self._std_weight_velocity * measurement[3],
+            
+            80 * self._std_weight_acceleration * measurement[3],
+            80 * self._std_weight_acceleration * measurement[3]]
+        covariance = np.diag(np.square(std))        # P00
+        return mean, covariance # X00, P00
