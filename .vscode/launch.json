@@ -38,21 +38,21 @@
             "console": "integratedTerminal",
             "justMyCode": true,
             "args": [
-                "--max_frames", "50",
+                "--max_frames", "150",
                 "--device", "cuda:2",
-                "--kalmanFilter_type", "qr",
+                "--kalmanFilter_type", "xy",
                 "--Q_times", "1.0",
                 "--R_times", "1.0",
                 "--apExtractor_type", "res18",
                 "--min_confidence", "0.3",
                 "--nn_budget", "100",
-                "--output_file", "output/30fps300s_10fps5s_q1r1_res18APFeature_Masks.txt",
+                "--output_file", "output/30fps300s_30fps5s_xyq1r1_res18APFeature_Masks.txt",
                 "--draw_masks", "True",
                 "--draw_detections", "False",
                 "--draw_tracks", "False",
                 "--draw_trails", "False",
                 "--build_video", "True",
-                "--video_fps", "10"
+                "--video_fps", "30"
             ]
         },
         {

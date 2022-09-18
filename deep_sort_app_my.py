@@ -230,8 +230,8 @@ def parse_args():
         "--apExtractor_type",  help="'copy' or 'res18' for now.", 
         default='res18', type=str, choices=['copy', 'res18'])
     parser.add_argument(
-        "--kalmanFilter_type",  help="'raw' or 'qr' for now.", 
-        default='raw', type=str, choices=['raw', 'qr'])
+        "--kalmanFilter_type",  help="'raw', 'qr' or 'xy' for now.", 
+        default='raw', type=str, choices=['raw', 'qr', 'xy'])
     parser.add_argument(
         "--Q_times",  help="卡尔曼滤波器的超参数，用于调整 超参数Q（过程噪声协方差） 的大小。", 
         default=1.0, type=float)

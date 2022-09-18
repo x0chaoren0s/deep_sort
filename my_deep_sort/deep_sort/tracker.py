@@ -50,6 +50,8 @@ class Tracker:
             self.kf = kalman_filter.KalmanFilter()
         elif args.kalmanFilter_type == 'qr':
             self.kf = kalman_filter.kalmanFilter_QR(args)
+        elif args.kalmanFilter_type == 'xy':
+            self.kf = kalman_filter.kalmanFilter_xy(args)
         self.tracks = []
         self._next_id = 1
 
