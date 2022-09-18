@@ -26,6 +26,8 @@ class Tracker:
         Number of consecutive detections before the track is confirmed. The
         track state is set to `Deleted` if a miss occurs within the first
         `n_init` frames.
+    kalmanFilter_type : str in ['raw', 'ana_solu']
+        default='raw'
 
     Attributes
     ----------
@@ -44,7 +46,10 @@ class Tracker:
         self.max_age = args.max_age  # Maximum number of missed misses before a track is deleted.
         self.n_init = args.n_init    # Number of frames that a track remains in initialization phase.
 
-        self.kf = kalman_filter.KalmanFilter()
+        if args.kalmanFilter_type == 'raw':
+            self.kf = kalman_filter.KalmanFilter()
+        elif args.kalmanFilter_type == 'qr':
+            self.kf = kalman_filter.kalmanFilter_QR(args)
         self.tracks = []
         self._next_id = 1
 
@@ -102,14 +107,20 @@ class Tracker:
     def _match(self, detections):
 
         def gated_metric(tracks, dets, track_indices, detection_indices):
+            '''
+            根据外观信息和马氏距离，计算卡尔曼滤波预测到的tracks和当前时刻检测到的
+            detections的代价矩阵
+            '''
             features = np.array([dets[i].feature for i in detection_indices])
             targets = np.array([tracks[i].track_id for i in track_indices])
+            #基于外观信息（比如cos距离，欧氏距离，IOU距离），计算tracks和detections的余弦距离代价矩阵
             cost_matrix = self.metric.distance(features, targets)
+            #基于马氏距离，过滤掉代价矩阵中的一些不合理的项，将其设置为一个较大的值
             cost_matrix = linear_assignment.gate_cost_matrix(
                 self.kf, cost_matrix, tracks, dets, track_indices,
                 detection_indices)
 
-            return cost_matrix
+            return cost_matrix #将这个代价矩阵应用一下匈牙利算法，就能进行检测detections和跟踪tracks的匹配了
 
         # Split track set into confirmed and unconfirmed tracks.
         confirmed_tracks = [
