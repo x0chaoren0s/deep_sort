@@ -172,6 +172,7 @@ class Visualization_only_save_image(Visualization):
 
     def draw_trails(self, trails, cur_frame_id, colors=None):
         '''
+        该函数逻辑颜色不匹配，待更新
         trails: { track_id:[[本track最近trail_len帧框的中心点],最近的frame_id] } \n
         cur_frame_id: 当前帧的id
         colors: [(r,g,b),(),..] for r,b,g in [0,255], default is random
