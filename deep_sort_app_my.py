@@ -84,6 +84,7 @@ def run(args):
     tracker = Tracker(metric, args)
     results = []            # [ [frame_idx, track_id, *tlwh],[],.. ]
     trails  = dict()        # { track_id:[[本track最近trail_len帧框的中心点],最近的frame_id] }
+                            # trails 没有删除失效trail ，待更新
     trail_len = 10          # 每条轨迹记录的最多历史帧数
     track_colors = dict()   # { track_id: (r,g,b) } 用于统一条轨迹和其框的颜色
 
@@ -119,12 +120,13 @@ def run(args):
         det_id_2_track_id, matches, unmatched_tracks, unmatched_detections = tracker.update(detections)  # detections: [ (tlwh,confidence,feature),(),.. ]
             # det_id_2_track_id 第一部分来自于matches，第二部分来自于unmatched_detections
             # det_id_2_track_id 用于产生标记展示图象的labels
-        trk_labels = [str(det_id_2_track_id[det_id]) for det_id in range(len(detections))]
+        trk_labels_in_det_sequence = [str(det_id_2_track_id[det_id]) for det_id in range(len(detections))]
         for det_idx in range(len(detections)):
             track_idx = det_id_2_track_id[det_idx]
             if track_idx not in track_colors:
                 track_colors[track_idx] = (random.randint(0,255),random.randint(0,255),random.randint(0,255))
-        det_colors = [track_colors[det_id_2_track_id[det_id]] for det_id in range(len(detections))]
+        # 每个det都有match的trk，或者新trk，因此每个det都有对应的trk
+        trk_colors_in_det_sequence = [track_colors[det_id_2_track_id[det_id]] for det_id in range(len(detections))]
 
         for detection_idx in det_id_2_track_id: # trails: { track_id:[[本track最近trail_len帧框的中心点],最近的frame_id] }
             track_idx = det_id_2_track_id[detection_idx]
@@ -138,14 +140,16 @@ def run(args):
         # Update visualization.
         vis.set_image(img.copy())
         if args.draw_detections:
-            vis.draw_detections(detections, trk_labels, colors=det_colors)    # detections: [ (tlwh,confidence,feature),(),.. ]
+            vis.draw_detections(detections, trk_labels_in_det_sequence, colors=trk_colors_in_det_sequence)    # detections: [ (tlwh,confidence,feature),(),.. ]
         if args.draw_tracks:
             vis.draw_trackers(tracker.tracks, track_colors=track_colors)  
         if args.draw_masks:
-            vis.draw_detection_masks(masks, colors=det_colors, labels=trk_labels) # 应该画trks对应的dets的masks，而不是直接dets的masks
+            vis.draw_detection_masks(masks, colors=trk_colors_in_det_sequence, labels=trk_labels_in_det_sequence) 
+            # 应该画trks对应的dets的masks，而不是直接dets的masks
+            # 每个det都有match的trk，或者新trk，因此每个det都有对应的trk
             # pass
         if args.draw_trails:
-            vis.draw_trails(trails, frame_idx, colors=det_colors)
+            vis.draw_trails(trails, frame_idx, colors=trk_colors_in_det_sequence) # 该函数逻辑颜色不匹配，待更新
 
         # Store results.
         for track in tracker.tracks:
@@ -156,7 +160,8 @@ def run(args):
                 frame_idx, track.track_id, bbox[0], bbox[1], bbox[2], bbox[3]])
     frame_idx = 0 
     # last_idx = dataset.size - 1
-    last_idx = 150
+    # last_idx = 150
+    last_idx = min(args.max_frames - 1,dataset.size - 1)
     output_image_folder = \
         os.path.splitext(args.output_file)[0]
     first_idx, last_idx, image_shape, image_names = \
@@ -172,7 +177,7 @@ def run(args):
         print('%d,%d,%.2f,%.2f,%.2f,%.2f,1,-1,-1,-1' % (
             row[0], row[1], row[2], row[3], row[4], row[5]),file=f)
     if args.build_video:
-        build_video_cmd = f'ffmpeg -r 30 -i {os.path.join(output_image_folder,r"%04d.jpg")} {output_image_folder+".mp4"} -y'
+        build_video_cmd = f'ffmpeg -r {args.video_fps} -i {os.path.join(output_image_folder,r"%04d.jpg")} {output_image_folder+".mp4"} -y'
         os.system(build_video_cmd)
 
 
@@ -190,6 +195,13 @@ def parse_args():
         "--output_file", help="Path to the tracking output file. This file will"
         " contain the tracking results on completion.",
         default="/tmp/hypotheses.txt")
+    parser.add_argument(
+        "--device", help="模型和数据的存放运行设备。",
+        default='cuda:1', type=str,
+        choices=['cpu', 'cuda:0', 'cuda:1', 'cuda:2', 'cuda:3'])
+    parser.add_argument(
+        "--max_frames", help="从数据集识别并跟踪的最大帧数，默认30，-1代表数据集中所有帧。",
+        default='150', type=int)
     parser.add_argument(
         "--min_height", help="A minimum detection bounding box height. "
         "Detections that are smaller than this value are disregarded.",
@@ -218,8 +230,14 @@ def parse_args():
         "--apExtractor_type",  help="'copy' or 'res18' for now.", 
         default='res18', type=str, choices=['copy', 'res18'])
     parser.add_argument(
-        "--kalmanFilter_type",  help="'raw' or 'ana_solu' for now.", 
-        default='raw', type=str, choices=['raw', 'ana_solu'])
+        "--kalmanFilter_type",  help="'raw' or 'qr' for now.", 
+        default='raw', type=str, choices=['raw', 'qr'])
+    parser.add_argument(
+        "--Q_times",  help="卡尔曼滤波器的超参数，用于调整 超参数Q（过程噪声协方差） 的大小。", 
+        default=1.0, type=float)
+    parser.add_argument(
+        "--R_times",  help="卡尔曼滤波器的超参数，用于调整 超参数R（观测噪声协方差） 的大小。", 
+        default=1.0, type=float)
     parser.add_argument(
         "--max_cosine_distance", help="Gating threshold for cosine distance "
         "metric (object appearance).", type=float, default=0.2)
@@ -244,6 +262,9 @@ def parse_args():
     parser.add_argument(
         "--build_video", help="Build a .mp4 file with outputed images.",
         default=True, type=bool_string)
+    parser.add_argument(
+        "--video_fps", help="Set the fps of the output .mp4 file.",
+        default=30.0, type=float)
     return parser.parse_args()
 
 
