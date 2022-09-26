@@ -18,21 +18,24 @@ from my_deep_sort.deep_sort import nn_matching
 from my_deep_sort.deep_sort.detection import Detection
 from my_deep_sort.deep_sort.tracker import Tracker
 
-from my_deep_sort.utils.data import LingshuiFrameDataset
-from my_deep_sort.utils.detector import Detector
-from my_deep_sort.utils.encoder import ApparentFeatureExtracker, ApparentFeatureCopier
+from my_deep_sort.utils.data import LingshuiFrameDataset, MOT16TrainFrameDataset
+from my_deep_sort.utils.detector import Detector_mmdet
+from my_deep_sort.utils.encoder import ApparentFeatureExtracker, ApparentFeatureFakeCopier, ApparentFeatureCopier
+from my_deep_sort.utils.evaluator import EvaluatorOfflineMotmetrics
 
 import random
+import deep_sort_app
 
 
 # 观测手段：图像识别检测器
 config_file = '/home/xxy/mmdetection/work_dirs/mask2former_swin-s-p4-w7-224_lsj_8x2_50e_coco_FlatCosineAnnealing/mask2former_swin-s-p4-w7-224_lsj_8x2_50e_coco.py'
 checkpoint_file_detector = '/home/xxy/mmdetection/work_dirs/mask2former_swin-s-p4-w7-224_lsj_8x2_50e_coco_FlatCosineAnnealing/epoch_2000.pth'
-detector = Detector(config_file, checkpoint_file_detector)
+detector = Detector_mmdet(config_file, checkpoint_file_detector)
 
 # 卡尔曼滤波更新辅助工具：表观特征抽取器
 apExtrackers = {
-    'copy':     ApparentFeatureCopier(''),  # 直接循环复制 resources/detections/MOT16_POI_test/MOT16-06.npy 中的特征
+    'fakecopy': ApparentFeatureFakeCopier(''),  # 直接循环复制 resources/detections/MOT16_POI_test/MOT16-06.npy 中的特征
+    'copy':     ApparentFeatureCopier(), # 只能用于 MOT16/train 数据集
     'res18':    ApparentFeatureExtracker('/home/xxy/deep_sort/my_deep_sort/detector_checkpoints/renet18/epoch300.pth')
 }
 
@@ -90,13 +93,26 @@ def run(args):
 
     # Run tracker.
     # 要推理的图片集合
-    dataset = LingshuiFrameDataset()
+    if args.dataset == 'lingshui':
+        dataset = LingshuiFrameDataset()
+    else:   # ['mot16-02', 'mot16-04', 'mot16-05', 'mot16-09', 'mot16-10', 'mot16-11', 'mot16-13']
+        dataset = MOT16TrainFrameDataset(args)
+
     def frame_callback(vis, frame_idx):
         print("Processing frame %05d" % frame_idx)
 
         # Load image and generate detections.
         img = dataset[frame_idx]
-        detections, masks = create_detections(img, args)
+        if args.dataset == 'lingshui':
+            detections, masks = create_detections(img, args)
+        else:   # ['mot16-02', 'mot16-04', 'mot16-05', 'mot16-09', 'mot16-10', 'mot16-11', 'mot16-13']
+            sequence_dir = MOT16TrainFrameDataset.sequence_dir[args.dataset]
+            detection_file = MOT16TrainFrameDataset.detection_file[args.dataset]
+            seq_info = deep_sort_app.gather_sequence_info(sequence_dir, detection_file)
+            detections = deep_sort_app.create_detections( # seq_info["detections"].shape：(10853, 138)
+                seq_info["detections"], frame_idx, args.min_detection_height)
+            masks = [None]*len(detections) # mot16没有mask
+
         # detections: [ (tlwh,confidence,feature),(),.. ], masks: [100个mask：np.array(..),np.array()，..]
         # detections = [d for d in detections if d.confidence >= min_confidence]
         tmp_detections, tmp_masks = [], []
@@ -113,7 +129,6 @@ def run(args):
         indices = preprocessing.non_max_suppression(
             boxes, args, scores)
         detections = [detections[i] for i in indices]
-        masks = [masks[i] for i in indices]
 
         # Update tracker. 
         tracker.predict()
@@ -128,57 +143,71 @@ def run(args):
         # 每个det都有match的trk，或者新trk，因此每个det都有对应的trk
         trk_colors_in_det_sequence = [track_colors[det_id_2_track_id[det_id]] for det_id in range(len(detections))]
 
-        for detection_idx in det_id_2_track_id: # trails: { track_id:[[本track最近trail_len帧框的中心点],最近的frame_id] }
-            track_idx = det_id_2_track_id[detection_idx]
-            if track_idx not in trails:
-                trails[track_idx] = [[detections[detection_idx].get_center()], frame_idx]
-            else:
-                trails[track_idx][0].append(detections[detection_idx].get_center())
-                trails[track_idx][1] = frame_idx
-            trails[track_idx][0] = trails[track_idx][0][-trail_len:]
-
+        
         # Update visualization.
-        vis.set_image(img.copy())
-        if args.draw_detections:
-            vis.draw_detections(detections, trk_labels_in_det_sequence, colors=trk_colors_in_det_sequence)    # detections: [ (tlwh,confidence,feature),(),.. ]
-        if args.draw_tracks:
-            vis.draw_trackers(tracker.tracks, track_colors=track_colors)  
-        if args.draw_masks:
-            vis.draw_detection_masks(masks, colors=trk_colors_in_det_sequence, labels=trk_labels_in_det_sequence) 
-            # 应该画trks对应的dets的masks，而不是直接dets的masks
-            # 每个det都有match的trk，或者新trk，因此每个det都有对应的trk
-            # pass
-        if args.draw_trails:
-            vis.draw_trails(trails, frame_idx, colors=trk_colors_in_det_sequence) # 该函数逻辑颜色不匹配，待更新
+        if args.display == True:
+            vis.set_image(img.copy())
+            if args.draw_detections:
+                vis.draw_detections(detections, trk_labels_in_det_sequence, colors=trk_colors_in_det_sequence)    # detections: [ (tlwh,confidence,feature),(),.. ]
+            if args.draw_tracks:
+                vis.draw_trackers(tracker.tracks, track_colors=track_colors)  
+            if args.draw_masks:
+                masks = [masks[i] for i in indices]
+                vis.draw_detection_masks(masks, colors=trk_colors_in_det_sequence, labels=trk_labels_in_det_sequence) 
+                # 应该画trks对应的dets的masks，而不是直接dets的masks
+                # 每个det都有match的trk，或者新trk，因此每个det都有对应的trk
+                # pass
+            if args.draw_trails:
+                for detection_idx in det_id_2_track_id: # trails: { track_id:[[本track最近trail_len帧框的中心点],最近的frame_id] }
+                    track_idx = det_id_2_track_id[detection_idx]
+                    if track_idx not in trails:
+                        trails[track_idx] = [[detections[detection_idx].get_center()], frame_idx]
+                    else:
+                        trails[track_idx][0].append(detections[detection_idx].get_center())
+                        trails[track_idx][1] = frame_idx
+                    trails[track_idx][0] = trails[track_idx][0][-trail_len:]
+                vis.draw_trails(trails, frame_idx, colors=trk_colors_in_det_sequence) # 该函数逻辑颜色不匹配，待更新
 
         # Store results.
         for track in tracker.tracks:
-            # if not track.is_confirmed() or track.time_since_update > 1:
-            #     continue
+            if not track.is_confirmed() or track.time_since_update > 1:
+                continue
             bbox = track.to_tlwh()
             results.append([
                 frame_idx, track.track_id, bbox[0], bbox[1], bbox[2], bbox[3]])
     frame_idx = 0 
     # last_idx = dataset.size - 1
     # last_idx = 150
-    last_idx = min(args.max_frames - 1,dataset.size - 1)
+    last_idx = min(args.max_frames - 1,dataset.size - 1) if args.max_frames!=-1 else dataset.size - 1
     output_image_folder = \
         os.path.splitext(args.output_file)[0]
     first_idx, last_idx, image_shape, image_names = \
         frame_idx,last_idx,dataset.image_shape[::-1],dataset.image_names
-    visualizer = visualization.Visualization_only_save_image(
-        output_image_folder, first_idx, last_idx, image_shape, image_names)
+    if args.display == True:
+        visualizer = visualization.Visualization_only_save_image(
+            output_image_folder, first_idx, last_idx, image_shape, image_names)
+    else:
+        visualizer = visualization.NoVisualization(first_idx, last_idx)
     visualizer.run(frame_callback)
 
     
     # Store results.
+    # gt 里边是按照轨迹的 ID 号进行排序的
+    results = sorted(results, key=lambda result:result[1])
+    os.makedirs(os.path.split(args.output_file)[0], exist_ok=True)  # 保证写文件的目录存在
     f = open(args.output_file, 'w')
     for row in results:
         print('%d,%d,%.2f,%.2f,%.2f,%.2f,1,-1,-1,-1' % (
             row[0], row[1], row[2], row[3], row[4], row[5]),file=f)
-    if args.build_video:
-        build_video_cmd = f'ffmpeg -r {args.video_fps} -i {os.path.join(output_image_folder,r"%04d.jpg")} {output_image_folder+".mp4"} -y'
+    if args.display and args.build_video:
+        imagename_patern = r"%04d.jpg" if args.dataset=='lingshui' else r"%06d.jpg"
+        build_video_cmd = f'ffmpeg -r {args.video_fps} -i {os.path.join(output_image_folder,imagename_patern)} {output_image_folder+".mp4"} -y'
         os.system(build_video_cmd)
+    if args.dataset != 'lingshui':
+        sequence_dir = MOT16TrainFrameDataset.sequence_dir[args.dataset]
+        ground_truth_file = os.path.join(sequence_dir,'gt/gt.txt')
+        track_result_file = args.output_file
+        EvaluatorOfflineMotmetrics(ground_truth_file, track_result_file, 'critical', 'mot16')
 
 
 def bool_string(input_string):
@@ -192,6 +221,11 @@ def parse_args():
     """
     parser = argparse.ArgumentParser(description="Deep SORT")
     parser.add_argument(
+        "--dataset", help="Select one of MOT16 sets or lingshui-set.",
+        default="lingshui",
+        choices=['lingshui', 'mot16-02', 'mot16-04', 'mot16-05', 'mot16-09',
+                'mot16-10', 'mot16-11', 'mot16-13'])
+    parser.add_argument(
         "--output_file", help="Path to the tracking output file. This file will"
         " contain the tracking results on completion.",
         default="/tmp/hypotheses.txt")
@@ -201,7 +235,7 @@ def parse_args():
         choices=['cpu', 'cuda:0', 'cuda:1', 'cuda:2', 'cuda:3'])
     parser.add_argument(
         "--max_frames", help="从数据集识别并跟踪的最大帧数，默认30，-1代表数据集中所有帧。",
-        default='150', type=int)
+        default='30', type=int)
     parser.add_argument(
         "--min_height", help="A minimum detection bounding box height. "
         "Detections that are smaller than this value are disregarded.",
@@ -230,8 +264,8 @@ def parse_args():
         "--apExtractor_type",  help="'copy' or 'res18' for now.", 
         default='res18', type=str, choices=['copy', 'res18'])
     parser.add_argument(
-        "--kalmanFilter_type",  help="'raw', 'qr' or 'xy' for now.", 
-        default='raw', type=str, choices=['raw', 'qr', 'xy'])
+        "--kalmanFilter_type",  help="'raw', 'xy', 'qr' or 'xyqr' for now.", 
+        default='raw', type=str, choices=['raw', 'xy', 'qr', 'xyqr'])
     parser.add_argument(
         "--Q_times",  help="卡尔曼滤波器的超参数，用于调整 超参数Q（过程噪声协方差） 的大小。", 
         default=1.0, type=float)
