@@ -286,10 +286,134 @@ gating_distance():
     # 应该完全不用改
 '''
 
+class KalmanFilter_xy(KalmanFilter):
+    '''
+    预测模型中对x和y的加速度建模，其他和原版保持一致
+    10维状态空间： [x, y, a, h,    x', y', a', h',   x'', y''].T
+     4维观测空间： [x, y, a, h].T
+    '''
+    def __init__(self, args):
+        '''
+        10维状态空间： [x, y, a, h,    x', y', a', h',   x'', y''].T \n
+        4维观测空间： [x, y, a, h].T \n
+        '''
+        self.ndim, dt = 4, 1.
+        self.xdim, self.zdim = 10, 4
+
+        # Create Kalman filter model matrices.
+        self._motion_mat = np.array([       # F: 10*10
+            [1,0,0,0,   dt, 0, 0, 0,    0.5*dt*dt,         0],
+            [0,1,0,0,    0,dt, 0, 0,    0,         0.5*dt*dt],
+            [0,0,1,0,    0, 0,dt, 0,    0,                 0],
+            [0,0,0,1,    0, 0, 0,dt,    0,                 0],
+            
+            [0,0,0,0,    1, 0, 0, 0,    dt,                0],
+            [0,0,0,0,    0, 1, 0, 0,    0,                dt],
+            [0,0,0,0,    0, 0, 1, 0,    0,                 0],
+            [0,0,0,0,    0, 0, 0, 1,    0,                 0],
+            
+            [0,0,0,0,    0, 0, 0, 0,    1,                 0],
+            [0,0,0,0,    0, 0, 0, 0,    0,                 1],
+        ])
+        self._update_mat = np.array([       # H: 4*10
+            [1,0,0,0,    0, 0, 0, 0,    0,                 0],
+            [0,1,0,0,    0, 0, 0, 0,    0,                 0],
+            [0,0,1,0,    0, 0, 0, 0,    0,                 0],
+            [0,0,0,1,    0, 0, 0, 0,    0,                 0]
+        ])
+
+        # Motion and observation uncertainty are chosen relative to the current
+        # state estimate. These weights control the amount of uncertainty in
+        # the model. This is a bit hacky.
+        self._std_weight_position = 1. / 20
+        self._std_weight_velocity = 1. / 160
+        self._std_weight_acceleration = 1. / 3000
+
+    def initiate(self, measurement):
+        """Create track from unassociated measurement.
+
+        Parameters
+        ----------
+        measurement : ndarray
+            Bounding box coordinates (x, y, a, h) with center position (x, y),
+            aspect ratio a, and height h.
+
+        Returns
+        -------
+        (ndarray, ndarray)
+            Returns the mean vector (8 dimensional) and covariance matrix (8x8
+            dimensional) of the new track. Unobserved velocities are initialized
+            to 0 mean.
+
+        """
+        mean_pos = measurement              # x,y,a,h
+        mean_vel = np.zeros_like(mean_pos)  # x',y',a',h'
+        mean_acc = np.zeros(2)              # x'',y''
+        mean = np.r_[mean_pos, mean_vel, mean_acc]    # X00
+
+        std = [
+            2 * self._std_weight_position * measurement[3],
+            2 * self._std_weight_position * measurement[3],
+            1e-2,
+            2 * self._std_weight_position * measurement[3],
+
+            10 * self._std_weight_velocity * measurement[3],
+            10 * self._std_weight_velocity * measurement[3],
+            1e-5,
+            10 * self._std_weight_velocity * measurement[3],
+            
+            80 * self._std_weight_acceleration * measurement[3],
+            80 * self._std_weight_acceleration * measurement[3]]
+        covariance = np.diag(np.square(std))        # P00
+        return mean, covariance # X00, P00
+
+    def predict(self, mean, covariance):
+        """Run Kalman filter prediction step.
+
+        Parameters
+        ----------
+        mean : ndarray
+            The 8 dimensional mean vector of the object state at the previous
+            time step.
+        covariance : ndarray
+            The 8x8 dimensional covariance matrix of the object state at the
+            previous time step.
+
+        Returns
+        -------
+        (ndarray, ndarray)
+            Returns the mean vector and covariance matrix of the predicted
+            state. Unobserved velocities are initialized to 0 mean.
+
+        """
+        # motion_cov == Q 预测过程中噪声协方差
+        std_pos = [
+            self._std_weight_position * mean[3],
+            self._std_weight_position * mean[3],
+            1e-2,
+            self._std_weight_position * mean[3]]
+        std_vel = [
+            self._std_weight_velocity * mean[3],
+            self._std_weight_velocity * mean[3],
+            1e-5,
+            self._std_weight_velocity * mean[3]]
+        std_acc = [
+            self._std_weight_acceleration * mean[3],
+            self._std_weight_acceleration * mean[3]
+        ]
+        # np.r_ 按列连接两个矩阵
+        motion_cov = np.diag(np.square(np.r_[std_pos, std_vel, std_acc]))
+
+        # x' = Fx
+        mean = np.dot(self._motion_mat, mean)
+        # P' = FPF^T+Q
+        covariance = np.linalg.multi_dot((
+            self._motion_mat, covariance, self._motion_mat.T)) + motion_cov
+
+        return mean, covariance     # X_{k+1,k}, P_{k+1,k} 
 
 
-
-class kalmanFilter_QR(KalmanFilter):
+class KalmanFilter_QR(KalmanFilter):
     """
     定制卡尔曼滤波器的 Q(motion_cov:预测过程中噪声协方差) 和 R(innovation_cov:测量过程中噪声的协方差)
     
@@ -383,9 +507,9 @@ class kalmanFilter_QR(KalmanFilter):
             self._update_mat, covariance, self._update_mat.T))
         return mean, covariance + innovation_cov
 
-class kalmanFilter_xy(kalmanFilter_QR):
+class KalmanFilter_xy_QR(KalmanFilter_QR):
     '''
-    预测模型中对x和y的加速度建模
+    预测模型中对x和y的加速度建模，且定制卡尔曼滤波器的 Q 和 R
     10维状态空间： [x, y, a, h,    x', y', a', h',   x'', y''].T
      4维观测空间： [x, y, a, h].T
     '''
