@@ -62,9 +62,12 @@ class NoVisualization(object):
     sequence to update the tracker without performing any visualization.
     """
 
-    def __init__(self, seq_info):
-        self.frame_idx = seq_info["min_frame_idx"]
-        self.last_idx = seq_info["max_frame_idx"]
+    # def __init__(self, seq_info):
+    #     self.frame_idx = seq_info["min_frame_idx"]
+    #     self.last_idx = seq_info["max_frame_idx"]
+    def __init__(self, first_idx, last_idx):
+        self.frame_idx = first_idx
+        self.last_idx = last_idx
 
     def set_image(self, image):
         pass
