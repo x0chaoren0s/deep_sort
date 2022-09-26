@@ -383,6 +383,8 @@ class ImageViewer(object):
             t0 = time.time()
             if not is_paused:
                 self._terminate = not self._user_fun()
+                if self._terminate:
+                    break
                 if self._video_writer is not None:
                     self._video_writer.write(
                         cv2.resize(self.image, self._window_shape))
