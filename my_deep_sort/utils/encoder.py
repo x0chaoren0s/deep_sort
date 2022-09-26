@@ -146,11 +146,37 @@ class ApparentFeatureExtracker:
         self.model.load_state_dict(torch.load(checkpoint_file))
             
 
-class ApparentFeatureCopier:
-    ''' 直接循环复制 resources/detections/MOT16_POI_test/MOT16-06.npy 中的特征 '''
+class ApparentFeatureFakeCopier:
+    '''
+    直接循环复制 resources/detections/MOT16_POI_test/MOT16-06.npy 中的特征。
+    该特征并不能针对实际需要抽取特征的检测框，因此是fake。
+    '''
     def __init__(self, _) -> None:
         self.input_file = 'resources/detections/MOT16_POI_test/MOT16-06.npy'
         self.raw_features = np.load(self.input_file)[:,-128:]
+        self.len = len(self.raw_features)
+        self.idx = 0
+
+    def extract_feature(self, img, tlwh):
+        '''
+        img 为单张图片的路径，或np.ndarray。\n
+        直接循环返回 resources/detections/MOT16_POI_test/MOT16-06.npy 中的特征
+        '''
+        feature = self.raw_features[self.idx]
+        self.idx = (self.idx+1 )%self.len
+        return feature
+        
+class ApparentFeatureCopier:
+    '''
+    抽取别人训练好的 resources/detections/MOT16_POI_train 中的特征。
+    只能用于 MOT16/train 数据集。（test没有gt数据因此不用）
+    '''
+    def __init__(self, input_file='resources/detections/MOT16_POI_test/MOT16-06.npy') -> None:
+        '''
+        input_file: 别人抽取好特征的.npy文件
+        '''
+        # self.input_file = 'resources/detections/MOT16_POI_test/MOT16-06.npy'
+        self.raw_features = np.load(input_file)[:,-128:]
         self.len = len(self.raw_features)
         self.idx = 0
 
