@@ -220,8 +220,8 @@ class Visualization_only_save_image(Visualization):
         #     self.viewer.image[...,0][mask_bool] = color_r
         #     self.viewer.image[...,2][mask_bool] = color_b
         for i,mask_bool in enumerate(masks_bool):
-            r,g,b = colors[i]
-            self.viewer.image[mask_bool] = (b,g,r)  # opencv 默认使用 bgr 色彩空间
+            r,g,b = colors[i]                                                       #     mask_bool.shape: (1080, 1920)
+            self.viewer.image[mask_bool] = (b,g,r)  # opencv 默认使用 bgr 色彩空间  self.viewer.image.shape: (1080, 1920, 3)
         if labels is not None:
             for i,mask_bool in enumerate(masks_bool):
                 cx,cy = _get_centroid(mask_bool.astype(np.uint8))
