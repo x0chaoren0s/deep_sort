@@ -28,9 +28,13 @@ import deep_sort_app
 
 
 # 观测手段：图像识别检测器
-config_file = '/home/xxy/mmdetection/work_dirs/mask2former_swin-s-p4-w7-224_lsj_8x2_50e_coco_FlatCosineAnnealing/mask2former_swin-s-p4-w7-224_lsj_8x2_50e_coco.py'
-checkpoint_file_detector = '/home/xxy/mmdetection/work_dirs/mask2former_swin-s-p4-w7-224_lsj_8x2_50e_coco_FlatCosineAnnealing/epoch_2000.pth'
-detector = Detector_mmdet(config_file, checkpoint_file_detector)
+# config_file = '/home/xxy/mmdetection/work_dirs/mask2former_swin-s-p4-w7-224_lsj_8x2_50e_coco_FlatCosineAnnealing/mask2former_swin-s-p4-w7-224_lsj_8x2_50e_coco.py'
+# checkpoint_file_detector = '/home/xxy/mmdetection/work_dirs/mask2former_swin-s-p4-w7-224_lsj_8x2_50e_coco_FlatCosineAnnealing/epoch_2000.pth'
+# detector = Detector_mmdet(config_file, checkpoint_file_detector)
+detector = None
+def setDetector(args):
+    global detector
+    detector = Detector_mmdet(args.config_file_detector, args.checkpoint_file_detector)
 
 # 卡尔曼滤波更新辅助工具：表观特征抽取器
 apExtrackers = {
@@ -234,6 +238,14 @@ def parse_args():
         default='cuda:1', type=str,
         choices=['cpu', 'cuda:0', 'cuda:1', 'cuda:2', 'cuda:3'])
     parser.add_argument(
+        "--config_file_detector", help="检测器定义文件。",
+        default='/home/xxy/mmdetection/work_dirs/mask2former_swin-s-p4-w7-224_lsj_8x2_50e_coco_FlatCosineAnnealing/mask2former_swin-s-p4-w7-224_lsj_8x2_50e_coco.py',
+        type=str)
+    parser.add_argument(
+        "--checkpoint_file_detector", help="检测器权重文件。",
+        default='/home/xxy/mmdetection/work_dirs/mask2former_swin-s-p4-w7-224_lsj_8x2_50e_coco_FlatCosineAnnealing/epoch_2000.pth',
+        type=str)
+    parser.add_argument(
         "--max_frames", help="从数据集识别并跟踪的最大帧数，默认30，-1代表数据集中所有帧。",
         default='30', type=int)
     parser.add_argument(
@@ -304,4 +316,5 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
+    setDetector(args)
     run(args)
