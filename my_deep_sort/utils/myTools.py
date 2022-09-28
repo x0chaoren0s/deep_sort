@@ -36,7 +36,11 @@ def showList2(img_list):
             imgInd+=1
     cv.destroyAllWindows()
     
-    
+def rectangle(ndarray_bin, tlwh, color=bool(1), thickness=1):
+    x1,y1,w,h = tlwh[:4]
+    pt1, pt2 = (int(x1),int(y1)), (int(x1+w),int(y1+h))
+    return cv2.rectangle(ndarray_bin,pt1,pt2,color,thickness)
+
 def pltfig2cvimg(pltfig, dpi=1000):
     # define a function which returns an image as numpy array from figure
     #https://blog.csdn.net/weixin_39856265/article/details/110701257
