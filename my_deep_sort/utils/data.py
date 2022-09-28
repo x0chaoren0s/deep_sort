@@ -7,14 +7,14 @@ from torch import Tensor
 # from torchvision.transform import ToTensor
 import numpy as np
 try:
-    from my_deep_sort.utils.detector import Detector
+    from my_deep_sort.utils.detector import Detector_mmdet
     from my_deep_sort.utils.myTools import *
 except:
     try:
-        from utils.detector import Detector
+        from utils.detector import Detector_mmdet
         from utils.myTools import *
     except:
-        from detector import Detector
+        from detector import Detector_mmdet
         from myTools import *
 
 class LingshuiFrameDataset(Dataset):
@@ -43,6 +43,47 @@ class LingshuiFrameDataset(Dataset):
     def __repr__(self) -> str:
         return  f'{self.image_folder}\n' + \
                 f'num of images: {self.size}\n'
+
+class MOT16TrainFrameDataset(LingshuiFrameDataset):
+    ''' 索引返回读取到的图片，而不是文件路径 '''
+    sequence_dir = {
+        'mot16-02': 'MOT16/train/MOT16-02', 
+        'mot16-04': 'MOT16/train/MOT16-04', 
+        'mot16-05': 'MOT16/train/MOT16-05', 
+        'mot16-09': 'MOT16/train/MOT16-09', 
+        'mot16-10': 'MOT16/train/MOT16-10',  
+        'mot16-11': 'MOT16/train/MOT16-11', 
+        'mot16-13': 'MOT16/train/MOT16-13'
+    }
+    image_folder = {
+        'mot16-02': 'MOT16/train/MOT16-02/img1', 
+        'mot16-04': 'MOT16/train/MOT16-04/img1', 
+        'mot16-05': 'MOT16/train/MOT16-05/img1', 
+        'mot16-09': 'MOT16/train/MOT16-09/img1', 
+        'mot16-10': 'MOT16/train/MOT16-10/img1',  
+        'mot16-11': 'MOT16/train/MOT16-11/img1', 
+        'mot16-13': 'MOT16/train/MOT16-13/img1'
+    }
+    detection_file = {
+        'mot16-02': 'resources/detections/MOT16_POI_train/MOT16-02.npy', 
+        'mot16-04': 'resources/detections/MOT16_POI_train/MOT16-04.npy', 
+        'mot16-05': 'resources/detections/MOT16_POI_train/MOT16-05.npy', 
+        'mot16-09': 'resources/detections/MOT16_POI_train/MOT16-09.npy', 
+        'mot16-10': 'resources/detections/MOT16_POI_train/MOT16-10.npy',  
+        'mot16-11': 'resources/detections/MOT16_POI_train/MOT16-11.npy', 
+        'mot16-13': 'resources/detections/MOT16_POI_train/MOT16-13.npy'
+    }
+    def __init__(self, args) -> None:
+        '''
+        Parameters in args
+        ----------
+        dataset : str in ['mot16-02', 'mot16-04', 'mot16-05', 'mot16-09', 'mot16-10', 'mot16-11', 'mot16-13']
+        '''
+        self.image_folder   = MOT16TrainFrameDataset.image_folder[args.dataset]
+        self.image_names    = sorted(os.listdir(self.image_folder))
+        self.image_shape    = cv2.imread(os.path.join(self.image_folder,self.image_names[0]), # 目的是获取图片shape，所以只用第一张图就行了
+                                cv2.IMREAD_GRAYSCALE).shape
+        self.size           = len(self.image_names)
 
 class LingshuiFramePositivePatchDataset(Dataset):
     def __init__(self, image_path, tlwh_list, patch_resize=(224,224)):
@@ -119,7 +160,7 @@ def buildLingshuiFramePatchDataset(frameFolder, outputFolder, confi_thre=0.7, bb
     ''' 使用图像识别检测器的检测数据 '''
     config_file = '/home/xxy/mmdetection/work_dirs/mask2former_swin-s-p4-w7-224_lsj_8x2_50e_coco_FlatCosineAnnealing/mask2former_swin-s-p4-w7-224_lsj_8x2_50e_coco.py'
     checkpoint_file = '/home/xxy/mmdetection/work_dirs/mask2former_swin-s-p4-w7-224_lsj_8x2_50e_coco_FlatCosineAnnealing/epoch_2000.pth'
-    detector = Detector(config_file, checkpoint_file)
+    detector = Detector_mmdet(config_file, checkpoint_file)
 
     os.makedirs(outputFolder, exist_ok=True)
     
