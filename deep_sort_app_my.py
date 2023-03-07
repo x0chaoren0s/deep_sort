@@ -20,7 +20,7 @@ from my_deep_sort.deep_sort.tracker import Tracker
 
 from my_deep_sort.utils.data import LingshuiFrameDataset, MOT16TrainFrameDataset
 from my_deep_sort.utils.detector import Detector_mmdet
-from my_deep_sort.utils.encoder import ApparentFeatureExtracker, ApparentFeatureFakeCopier, ApparentFeatureCopier
+from my_deep_sort.utils.encoder import ApparentFeatureExtracker, ApparentFeatureFakeCopier, ApparentFeatureCopier, ApparentFeatureBlocker
 from my_deep_sort.utils.evaluator import EvaluatorOfflineMotmetrics
 
 import random
@@ -40,7 +40,8 @@ def setDetector(args):
 apExtrackers = {
     'fakecopy': ApparentFeatureFakeCopier(''),  # 直接循环复制 resources/detections/MOT16_POI_test/MOT16-06.npy 中的特征
     'copy':     ApparentFeatureCopier(), # 只能用于 MOT16/train 数据集
-    'res18':    ApparentFeatureExtracker('/home/xxy/deep_sort/my_deep_sort/detector_checkpoints/renet18/epoch300.pth')
+    'res18':    ApparentFeatureExtracker('/home/xxy/deep_sort/my_deep_sort/detector_checkpoints/renet18/epoch300.pth'),
+    'block':    ApparentFeatureBlocker()
 }
 
 
@@ -58,7 +59,7 @@ def create_detections(img, args):
         A minimum detection bounding box height. Detections that are smaller
         than this value are disregarded.
         default=0
-    apExtractor_type : 'copy' or 'res18' for now.
+    apExtractor_type : 'fakecopy', 'copy', 'res18' or 'block'  for now.
 
     Returns
     -------
@@ -90,7 +91,7 @@ def run(args):
     metric = nn_matching.NearestNeighborDistanceMetric("cosine", args)
     tracker = Tracker(metric, args)
     results = []            # [ [frame_idx, track_id, *tlwh],[],.. ]
-    trails  = dict()        # { track_id:[[本track最近trail_len帧框的中心点],最近的frame_id] }
+    trails  = dict()        # { track_id:[[本track最近trail_len帧的轨迹记录点],最近的frame_id] } 轨迹记录点：det框中心 或 mask质心
                             # trails 没有删除失效trail ，待更新
     trail_len = 10          # 每条轨迹记录的最多历史帧数
     track_colors = dict()   # { track_id: (r,g,b) } 用于统一条轨迹和其框的颜色
@@ -142,8 +143,10 @@ def run(args):
         trk_labels_in_det_sequence = [str(det_id_2_track_id[det_id]) for det_id in range(len(detections))]
         for det_idx in range(len(detections)):
             track_idx = det_id_2_track_id[det_idx]
-            if track_idx not in track_colors:
-                track_colors[track_idx] = (random.randint(0,255),random.randint(0,255),random.randint(0,255))
+            random_color = (random.randint(0,255),random.randint(0,255),random.randint(0,255))
+            track_colors.setdefault(track_idx, random_color)
+            # if track_idx not in track_colors:
+            #     track_colors[track_idx] = (random.randint(0,255),random.randint(0,255),random.randint(0,255))
         # 每个det都有match的trk，或者新trk，因此每个det都有对应的trk
         trk_colors_in_det_sequence = [track_colors[det_id_2_track_id[det_id]] for det_id in range(len(detections))]
 
@@ -152,17 +155,17 @@ def run(args):
         if args.display == True:
             vis.set_image(img.copy())
             if args.draw_detections:
-                vis.draw_detections(detections, trk_labels_in_det_sequence, colors=trk_colors_in_det_sequence)    # detections: [ (tlwh,confidence,feature),(),.. ]
+                vis.draw_detections(detections, labels=trk_labels_in_det_sequence, colors=trk_colors_in_det_sequence)    # detections: [ (tlwh,confidence,feature),(),.. ]
             if args.draw_tracks:
                 vis.draw_trackers(tracker.tracks, track_colors=track_colors)  
             if args.draw_masks:
                 masks = [masks[i] for i in indices]
-                vis.draw_detection_masks(masks, colors=trk_colors_in_det_sequence, labels=trk_labels_in_det_sequence) 
+                vis.draw_detection_masks(masks, labels=trk_labels_in_det_sequence, colors=trk_colors_in_det_sequence) 
                 # 应该画trks对应的dets的masks，而不是直接dets的masks
                 # 每个det都有match的trk，或者新trk，因此每个det都有对应的trk
                 # pass
             if args.draw_trails:
-                for detection_idx in det_id_2_track_id: # trails: { track_id:[[本track最近trail_len帧框的中心点],最近的frame_id] }
+                for detection_idx in det_id_2_track_id: # trails: { track_id:[[本track最近trail_len帧的轨迹记录点],最近的frame_id] } 轨迹记录点：det框中心 或 mask质心
                     track_idx = det_id_2_track_id[detection_idx]
                     if track_idx not in trails:
                         trails[track_idx] = [[detections[detection_idx].get_center()], frame_idx]
@@ -273,8 +276,8 @@ def parse_args():
         "is set to `Deleted` if a miss occurs within the first `n_init` frames.",
         default=3, type=int)
     parser.add_argument(
-        "--apExtractor_type",  help="'copy' or 'res18' for now.", 
-        default='res18', type=str, choices=['copy', 'res18'])
+        "--apExtractor_type",  help="'fakecopy', 'copy', 'res18' or 'block' for now.", 
+        default='res18', type=str, choices=['fakecopy', 'copy', 'res18', 'block'])
     parser.add_argument(
         "--kalmanFilter_type",  help="'raw', 'xy', 'qr' or 'xyqr' for now.", 
         default='raw', type=str, choices=['raw', 'xy', 'qr', 'xyqr'])

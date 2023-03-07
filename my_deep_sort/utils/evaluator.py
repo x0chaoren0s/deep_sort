@@ -1,6 +1,7 @@
 import numpy as np
 import typing, logging
 import motmetrics as mm
+import os
 
 class EvaluatorOnline:
     '''
@@ -99,21 +100,23 @@ class EvaluatorOffline:
 
 class EvaluatorOfflineMotmetrics:
     '''
+    结果错误！！！！！
     修改自 motmetrics.apps.eval_motchallenge
     即 https://github.com/cheind/py-motmetrics/blob/develop/motmetrics/apps/eval_motchallenge.py
     '''
     def __init__(self,
                 gt_file, det_file,
-                loglevel='info', fmt='mot15-2D',
+                loglevel, fmt,
                 solver=None, id_solver=None,
                 exclude_id=False
         ):
         '''
         parser.add_argument('gt_file', type=str, help='Path to ground truth file.') \n
         parser.add_argument('det_file', type=str, help='Path to tracker result file') \n
+        loglevel: ['critical','error','warning','info','debug']
         parser.add_argument('--loglevel', type=str, help='Log level', default='info') \n
         parser.add_argument('--fmt', type=str, help='Data format',
-            choices=['mot-16','mot15-2D','vatic_txt','detrac_mat','detrac_xml'], default='mot15-2D') \n
+            choices=['mot16','mot15-2D','vatic_txt','detrac_mat','detrac_xml'], default='mot15-2D') \n
         parser.add_argument('--solver', type=str, help='LAP solver to use for matching between frames.') \n
         parser.add_argument('--id_solver', type=str, help='LAP solver to use for ID metrics. Defaults to --solver.') \n
         parser.add_argument('--exclude_id', dest='exclude_id', default=False, action='store_true',
@@ -150,10 +153,35 @@ class EvaluatorOfflineMotmetrics:
         print(mm.io.render_summary(summary, formatters=mh.formatters, namemap=mm.io.motchallenge_metric_names))
         logging.info('Completed')
 
+class EvaluatorOfflineTrackEval:
+    '''
+    使用 TrackEval 库的 run_mot_challenge.py。
+    参考 https://github.com/JonathonLuiten/TrackEval/blob/master/scripts/run_mot_challenge.py
+    参考 /home/xxy/TrackEval/.vscode/launch.json
+    '''
+    def __init__(self, args) -> None:
+        root_folder = os.path.split(args.output_file)
+        SPLIT_TO_EVAL = 'train'
+        benchmark = 'benchmark'
+
+        
+
+
 
 track_result_file = '/home/xxy/deep_sort/datasets/MOT15/train/ADL-Rundle-6/det/det.txt'
 ground_truth_file = '/home/xxy/deep_sort/datasets/MOT15/train/ADL-Rundle-6/gt/gt.txt'
+
+# track_result_file = '/home/xxy/deep_sort/datasets/MOT16/train/MOT16-04/det/det.txt'
+# ground_truth_file = '/home/xxy/deep_sort/datasets/MOT16/train/MOT16-04/gt/gt.txt'
+
+track_result_file = '/home/xxy/deep_sort/datasets/MOT17/train/MOT17-02-SDP/det/det.txt'
+ground_truth_file = '/home/xxy/deep_sort/datasets/MOT17/train/MOT17-02-SDP/gt/gt.txt'
+
+
+track_result_file = '/home/xxy/deep_sort/output/MOT16-02.txt'
+ground_truth_file = '/home/xxy/deep_sort/MOT16/train/MOT16-02/gt/gt.txt'
 if __name__ == '__main__':
     # e = EvaluatorOffline(track_result_file, ground_truth_file)
     # e.evaluate()
-    e = EvaluatorOfflineMotmetrics(ground_truth_file, track_result_file)
+    e = EvaluatorOfflineMotmetrics(ground_truth_file, track_result_file, 'critical', 'mot16')
+    # e = EvaluatorOfflineTrackEval()

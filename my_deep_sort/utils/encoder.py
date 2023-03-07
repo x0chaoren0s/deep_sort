@@ -189,6 +189,16 @@ class ApparentFeatureCopier:
         self.idx = (self.idx+1 )%self.len
         return feature
 
+class ApparentFeatureBlocker:
+    '''
+    禁用表观特征，即extract_feature方法返回128维的0向量
+    '''
+    def __init__(self) -> None:
+        pass
+
+    def extract_feature(self, img, tlwh):
+        return np.zeros(128)
+
 checkpoint_file = '/home/xxy/deep_sort/my_deep_sort/detector_checkpoints/renet18/epoch300.pth'
 checkpoint_folder = '/home/xxy/deep_sort/my_deep_sort/detector_checkpoints/renet18'
 tensorboardLog_folder = '/home/xxy/deep_sort/my_deep_sort/detector_checkpoints/renet18/log'
