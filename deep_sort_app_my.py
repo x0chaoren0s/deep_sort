@@ -18,8 +18,8 @@ from my_deep_sort.deep_sort import nn_matching
 from my_deep_sort.deep_sort.detection import Detection
 from my_deep_sort.deep_sort.tracker import Tracker
 
-from my_deep_sort.utils.data import LingshuiFrameDataset, MOT16TrainFrameDataset
-from my_deep_sort.utils.detector import Detector_mmdet
+from my_deep_sort.utils.data import LingshuiFrameDataset, MOT16TrainFrameDataset, ShenlanFrameDataset
+from my_deep_sort.utils.detector import Detector_mmdet, Detector_mmdet_only_instances
 from my_deep_sort.utils.encoder import ApparentFeatureExtracker, ApparentFeatureFakeCopier, ApparentFeatureCopier, ApparentFeatureBlocker
 from my_deep_sort.utils.evaluator import EvaluatorOfflineMotmetrics
 
@@ -34,7 +34,8 @@ import deep_sort_app
 detector = None
 def setDetector(args):
     global detector
-    detector = Detector_mmdet(args.config_file_detector, args.checkpoint_file_detector)
+    # detector = Detector_mmdet(args.config_file_detector, args.checkpoint_file_detector)
+    detector = Detector_mmdet_only_instances(args.config_file_detector, args.checkpoint_file_detector)
 
 # 卡尔曼滤波更新辅助工具：表观特征抽取器
 apExtrackers = {
@@ -100,6 +101,10 @@ def run(args):
     # 要推理的图片集合
     if args.dataset == 'lingshui':
         dataset = LingshuiFrameDataset()
+    elif args.dataset == 'shenlan1':
+        dataset = ShenlanFrameDataset()
+    elif args.dataset == 'shenlan':
+        dataset = ShenlanFrameDataset('datasets/shenlan/145148-vv-1_full')
     else:   # ['mot16-02', 'mot16-04', 'mot16-05', 'mot16-09', 'mot16-10', 'mot16-11', 'mot16-13']
         dataset = MOT16TrainFrameDataset(args)
 
@@ -108,7 +113,7 @@ def run(args):
 
         # Load image and generate detections.
         img = dataset[frame_idx]
-        if args.dataset == 'lingshui':
+        if args.dataset in ['lingshui', 'shenlan1', 'shenlan']:
             detections, masks = create_detections(img, args)
         else:   # ['mot16-02', 'mot16-04', 'mot16-05', 'mot16-09', 'mot16-10', 'mot16-11', 'mot16-13']
             sequence_dir = MOT16TrainFrameDataset.sequence_dir[args.dataset]
@@ -207,10 +212,12 @@ def run(args):
         print('%d,%d,%.2f,%.2f,%.2f,%.2f,1,-1,-1,-1' % (
             row[0], row[1], row[2], row[3], row[4], row[5]),file=f)
     if args.display and args.build_video:
-        imagename_patern = r"%04d.jpg" if args.dataset=='lingshui' else r"%06d.jpg"
+        imagename_patern = r"%04d.jpg" if args.dataset in ['lingshui', 'shenlan1'] else \
+                           r"%05d.jpg" if args.dataset in ['shenlan'] else \
+                           r"%06d.jpg"
         build_video_cmd = f'ffmpeg -r {args.video_fps} -i {os.path.join(output_image_folder,imagename_patern)} {output_image_folder+".mp4"} -y'
         os.system(build_video_cmd)
-    if args.dataset != 'lingshui':
+    if args.dataset not in ['lingshui', 'shenlan1', 'shenlan']:
         sequence_dir = MOT16TrainFrameDataset.sequence_dir[args.dataset]
         ground_truth_file = os.path.join(sequence_dir,'gt/gt.txt')
         track_result_file = args.output_file
@@ -230,7 +237,7 @@ def parse_args():
     parser.add_argument(
         "--dataset", help="Select one of MOT16 sets or lingshui-set.",
         default="lingshui",
-        choices=['lingshui', 'mot16-02', 'mot16-04', 'mot16-05', 'mot16-09',
+        choices=['lingshui', 'shenlan1', 'shenlan', 'mot16-02', 'mot16-04', 'mot16-05', 'mot16-09',
                 'mot16-10', 'mot16-11', 'mot16-13'])
     parser.add_argument(
         "--output_file", help="Path to the tracking output file. This file will"

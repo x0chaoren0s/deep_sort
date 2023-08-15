@@ -43,6 +43,11 @@ class LingshuiFrameDataset(Dataset):
     def __repr__(self) -> str:
         return  f'{self.image_folder}\n' + \
                 f'num of images: {self.size}\n'
+    
+class ShenlanFrameDataset(LingshuiFrameDataset):
+    ''' 索引返回读取到的图片，而不是文件路径 '''
+    def __init__(self, image_folder='datasets/shenlan1/30fps300s') -> None:
+        super().__init__(image_folder)
 
 class MOT16TrainFrameDataset(LingshuiFrameDataset):
     ''' 索引返回读取到的图片，而不是文件路径 '''

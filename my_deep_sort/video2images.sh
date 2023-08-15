@@ -5,8 +5,10 @@
 fps=30
 duration=300 # 5min
 projectName="${fps}fps${duration}s"
-inputVideo=datasets/lingshui/2021-03-06-09-52-50.mp4
-outputPath="datasets/lingshui/${projectName}"
+# inputVideo=datasets/lingshui/2021-03-06-09-52-50.mp4
+# outputPath="datasets/lingshui/${projectName}"
+inputVideo=datasets/shenlan1/2023-03-09-shenlan1.mp4
+outputPath="datasets/shenlan1/${projectName}"
 outputPattern="${outputPath}/%04d.jpg"
 
 mkdir -p ${outputPath}
